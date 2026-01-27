@@ -1,0 +1,69 @@
+* Virtual Wolfgang project
+
+** TODO
+- Slack channel with all people involved
+- Non-experts: Alfred, Doaa, Markus, Victor, (Behnam)
+- Expert committee: Wolfgang, Corina, Kristina, Aliaksander, Ridha,
+  possibly including Karla
+
+** Objective
+- Find suitable descriptors for cyclic voltammograms
+
+** How
+- Create a reference benchmark of narrative descriptions of experts
+  describing existing CV/LSV curves
+
+** Details
+- Which kind of metadata is necessary for a descriptive interpretation
+  of a CV curve for an expert?
+  + Intended reaction (HER/Ammonia oxidation)
+  + Catalyst composition (elemental concentrations in overall cell in contact)
+  + Electrode material (e.g. something on Ni, C, etc.)
+  + Catalyst morphology (optional)
+  + Electrolyte: composition, e.g. 1M KOH; more complicated: pH value;
+    bubbling (e.g. Ar, O, air)
+  + Environment of experiment (atmosphere, temperature)
+  + Reference electrode
+  + Scan rate, potential range (explicit)
+  + IR correction/compensation yes/no and how
+  + publication reference
+  + Any other additional information
+  + Normalization procedure w.r.t area (current density)
+
+** Implementation
+- Web page with info on what's to come -> where/who? Sabrina/Anastasiia?
+- Final user interface
+  + Tutorial watch/listen  (+ skip)
+  + Name (optional)
+  + Email address for contact (optional)
+  + Institution (optional)
+  + Ranking of own expertise (for us to "classify" answers)
+  + Select OER/HER/ORR/etc. as possibilities
+  + Figure of CV curve + metadata
+  + Figure gallery to LSV + metadata
+  + Button for recording/stop the narrative with a timer to show the answer
+  + Timer with max 5 min?
+
+- Backend:
+  + Audio to text conversion (whisper.cpp, largest english model);
+    refinement possibility in a text field
+  + LLM-based extraction of descriptive features
+  + Topic modeling/keyword extraction
+  + Matching to curves, possibly with autoencoders/dimensionality
+    reduction, featurization of curves and matching to text
+
+- Future: Upload of own CV curves with metadata, interface provides a
+  description; free form field
+
+**
+
+** Publication (lead Markus/Doaa)
+- Possibly include all contributors as co-authors (choice when
+  providing optional information): at least 5/10 descriptions on an
+  acceptable level of competence; different career levels, different
+  rewards
+- Involve students
+- Interpret unkown voltammograms, find flaws/inconsistencies in interpretation
+
+** Future
+- Possibly a teaching tool
