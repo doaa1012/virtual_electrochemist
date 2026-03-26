@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { config } from "../config";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 
 const ExperimentDetailedViewer = () => {
   const [allMetadataIds, setAllMetadataIds] = useState([]);
@@ -15,28 +15,45 @@ const ExperimentDetailedViewer = () => {
   const [audioBlob, setAudioBlob] = useState(null);
   const [audioURL, setAudioURL] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [interimTranscript, setInterimTranscript] = useState("");
+  const speechRecRef = React.useRef(null);
+  const { id: routeId } = useParams();
+  const navigate = useNavigate();
+  const id = routeId ? Number(routeId) : null;
+  const singleMode = !!id;
+  const stopRecorderAndWait = () =>
+    new Promise((resolve) => {
+      const recorder = mediaRecorderRef.current;
 
-const autoSaveIfNeeded = async () => {
-  const recorder = mediaRecorderRef.current;
+      if (!recorder || recorder.state !== "recording") {
+        resolve();
+        return;
+      }
 
-  if (recorder && recorder.state === "recording") {
-    recorder.stop();
-  }
+      const oldOnStop = recorder.onstop;
 
-  if (audioBlob) {
-    toast.info("Saving your audio before switching...");
+      recorder.onstop = (e) => {
+        oldOnStop?.(e);
+        setTimeout(resolve, 80); // wait for React state update
+      };
 
-    const ok = await uploadAudio(audioBlob);
+      recorder.stop();
+    });
 
-    if (ok) {
-      toast.success("Recording autosaved!");
-      return true;
+  const autoSaveIfNeeded = async () => {
+    if (isSaving) return false;
+
+    await stopRecorderAndWait();
+
+    if (audioBlob) {
+      toast.info("Saving your audio before switching...");
+      const ok = await uploadAudio(audioBlob);
+      return ok;
     }
-  }
 
-  return false; // nothing saved
-};
-
+    return false;
+  };
 
   const metadataGroups = {
     "Chemical Description": [
@@ -82,47 +99,104 @@ const autoSaveIfNeeded = async () => {
   };
 
   //const [isRecording, setIsRecording] = useState(false);
-  let chunks = [];
+  const chunksRef = React.useRef([]);
+  const startSpeechToText = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast.error("Live transcription is not supported in this browser. Use Chrome/Edge.");
+      return false;
+    }
+
+    const rec = new SpeechRecognition();
+    speechRecRef.current = rec;
+
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-US"; // change if needed, e.g. "de-DE"
+
+    rec.onresult = (event) => {
+      let finalText = "";
+      let interimText = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const text = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalText += text + " ";
+        else interimText += text;
+      }
+
+      if (finalText) setTranscript((prev) => (prev + " " + finalText).trim());
+      setInterimTranscript(interimText);
+    };
+
+    rec.onerror = (e) => {
+      console.error("SpeechRecognition error:", e);
+      toast.error("Transcription error. Try again.");
+    };
+
+    rec.onend = () => {
+      // When recording stops, recognition may end too
+      setInterimTranscript("");
+    };
+
+    // reset text each new recording (optional)
+    setTranscript("");
+    setInterimTranscript("");
+
+    rec.start();
+    return true;
+  };
+
+  const stopSpeechToText = () => {
+    const rec = speechRecRef.current;
+    if (!rec) return;
+
+    try {
+      rec.onresult = null;
+      rec.onerror = null;
+      rec.stop();
+    } catch { }
+  };
+
   const startRecording = async () => {
     try {
+      startSpeechToText();
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
 
       mediaRecorderRef.current = mediaRecorder;
-      chunks = [];
+      chunksRef.current = [];
 
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunks.push(e.data);
-          console.log("Chunk received:", e.data.size);
-        }
+        if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
       mediaRecorder.onstart = () => {
-        console.log("Recording started");
         setIsRecording(true);
+        setAudioBlob(null);
+        setAudioURL(null);
       };
 
       mediaRecorder.onstop = () => {
-        console.log("Recording stopped");
+        // stop mic
+        stream.getTracks().forEach((t) => t.stop());
 
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        console.log("Final blob size:", blob.size);
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
 
         if (blob.size === 0) {
           toast.error("No audio detected. Try speaking louder.");
           return;
         }
 
-        // Save recording locally — user must manually save it
         setAudioBlob(blob);
         setAudioURL(URL.createObjectURL(blob));
-
         setIsRecording(false);
 
+        stopSpeechToText();
         toast.info("Recording complete. Review it before saving.");
       };
-
 
       mediaRecorder.start();
     } catch (error) {
@@ -131,60 +205,57 @@ const autoSaveIfNeeded = async () => {
     }
   };
 
-
   const stopRecording = () => {
     const recorder = mediaRecorderRef.current;
-
-    if (recorder && recorder.state !== "inactive") {
-      recorder.stop();
-    }
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    stopSpeechToText();
   };
 
-const uploadAudio = async (blob) => {
-  setIsSaving(true);
+  const uploadAudio = async (blob) => {
+    setIsSaving(true);
 
-  try {
-    const fileId = ecFiles[currentFileIndex]?.id;
-    if (!fileId) {
-      toast.error("No file selected.");
+    try {
+      const fileId = ecFiles[currentFileIndex]?.id;
+      if (!fileId) {
+        toast.error("No file selected.");
+        return false;
+      }
+
+      const formData = new FormData();
+      formData.append("audio", blob, "recording.webm");
+
+      const res = await fetch(`${config.BASE_URL}files/${fileId}/save-audio/`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (data.status === "success") {
+
+        //  FIX: show toast BEFORE state updates
+        toast.success("Recording saved!", { autoClose: 1500 });
+
+        //  FIX: delay so toast remains visible
+        await new Promise(r => setTimeout(r, 700));
+
+        // Now clear blob and re-render safely
+        setAudioBlob(null);
+        setAudioURL(null);
+        setTranscript("");
+        setInterimTranscript("");
+        return true;
+      } else {
+        toast.error("Upload failed");
+        return false;
+      }
+    } catch (err) {
+      toast.error("Error uploading audio");
       return false;
+    } finally {
+      setIsSaving(false);
     }
-
-    const formData = new FormData();
-    formData.append("audio", blob, "recording.webm");
-
-    const res = await fetch(`${config.BASE_URL}files/${fileId}/save-audio/`, {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await res.json();
-
-    if (data.status === "success") {
-
-      // 🔥 FIX: show toast BEFORE state updates
-      toast.success("Recording saved!", { autoClose: 1500 });
-
-      // 🔥 FIX: delay so toast remains visible
-      await new Promise(r => setTimeout(r, 700));
-
-      // Now clear blob and re-render safely
-      setAudioBlob(null);
-      setAudioURL(null);
-
-      return true;
-    } else {
-      toast.error("Upload failed");
-      return false;
-    }
-  } catch (err) {
-    toast.error("Error uploading audio");
-    return false;
-  } finally {
-    setIsSaving(false);
-  }
-};
-
+  };
 
   const formatKey = (key) => {
     const clean = key.replace(/_/g, " ");
@@ -192,7 +263,8 @@ const uploadAudio = async (blob) => {
   };
   const [plotData, setPlotData] = useState(null);
 
-  const currentMetadataId = allMetadataIds[currentIndex];
+  const currentMetadataId =
+    id ?? allMetadataIds[currentIndex];
   // ---- Voice Recording Logic ----
   const [isRecording, setIsRecording] = useState(false);
 
@@ -205,6 +277,49 @@ const uploadAudio = async (blob) => {
     setAllMetadataIds(data.ids);
     setCurrentIndex(0);
   }, []);
+
+  const renderValue = (key, value) => {
+  if (!value) return "";
+
+  // ---- DOI becomes clickable ----
+  if (key === "article_doi") {
+    const doiUrl = value.startsWith("http")
+      ? value
+      : `https://doi.org/${value}`;
+
+    return (
+      <a
+        href={doiUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 underline hover:text-blue-800"
+      >
+        {value}
+      </a>
+    );
+  }
+
+  // ---- Article link clickable ----
+  if (key === "article_link") {
+    return (
+      <a
+        href={value}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 underline hover:text-blue-800"
+      >
+        Open Article
+      </a>
+    );
+  }
+
+  // normal values
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return value;
+};
 
   // 2) Load data for a single metadata ID
   const loadMetadata = useCallback(async () => {
@@ -241,9 +356,9 @@ const uploadAudio = async (blob) => {
     const fileUrl = ecFiles[currentFileIndex].url;
     console.log("Loading plot for:", fileUrl);
 
- const res = await fetch(
-  `${config.BASE_URL}experiment/plot/?file_url=${encodeURIComponent(fileUrl)}&file_id=${ecFiles[currentFileIndex].id}`
-);
+    const res = await fetch(
+      `${config.BASE_URL}experiment/plot/?file_url=${encodeURIComponent(fileUrl)}&file_id=${ecFiles[currentFileIndex].id}`
+    );
 
 
     const data = await res.json();
@@ -265,8 +380,25 @@ const uploadAudio = async (blob) => {
 
   // 4) Effects
   useEffect(() => {
-    loadAllMetadataIds();
-  }, [loadAllMetadataIds]);
+
+    const init = async () => {
+
+      // -------- SINGLE EXPERIMENT MODE --------
+      if (id) {
+        console.log("Single experiment mode:", id);
+
+        setAllMetadataIds([id]);
+        setCurrentIndex(0);
+        return;
+      }
+
+      // -------- BROWSE ALL MODE --------
+      await loadAllMetadataIds();
+    };
+
+    init();
+
+  }, [id, loadAllMetadataIds]);
 
   useEffect(() => {
     loadMetadata();
@@ -277,47 +409,47 @@ const uploadAudio = async (blob) => {
   }, [currentFileIndex, ecFiles, loadPlot]);
 
   // 5) Metadata navigation
-const goNextMetadata = async () => {
-  if (isSaving) return toast.info("Saving audio, please wait...");
-  const ok = await autoSaveIfNeeded();
+  const goNextMetadata = async () => {
+    if (isSaving) return toast.info("Saving audio, please wait...");
+    const ok = await autoSaveIfNeeded();
 
-  if (ok) {
-    toast.success("Recording autosaved!");
-    await new Promise(r => setTimeout(r, 700)); // WAIT 0.7s to show message
-  }
+    if (ok) {
+      toast.success("Recording autosaved!");
+      await new Promise(r => setTimeout(r, 700));
+    }
 
-  setCurrentIndex((prev) => (prev + 1) % allMetadataIds.length);
-};
+    setCurrentIndex((prev) => (prev + 1) % allMetadataIds.length);
+  };
+  
+  const goPrevMetadata = async () => {
+    if (isSaving) return toast.info("Saving audio, please wait...");
+    const ok = await autoSaveIfNeeded();
 
-const goPrevMetadata = async () => {
-  if (isSaving) return toast.info("Saving audio, please wait...");
-  const ok = await autoSaveIfNeeded();
+    if (ok) {
+      toast.success("Recording autosaved!");
+      await new Promise(r => setTimeout(r, 700));
+    }
 
-  if (ok) {
-    toast.success("Recording autosaved!");
-    await new Promise(r => setTimeout(r, 700));
-  }
-
-  setCurrentIndex((prev) => (prev - 1 + allMetadataIds.length) % allMetadataIds.length);
-};
+    setCurrentIndex((prev) => (prev - 1 + allMetadataIds.length) % allMetadataIds.length);
+  };
 
 
   // 6) File navigation
-const nextFile = async () => {
-  if (isSaving) return toast.info("Saving audio...");
-  if (ecFiles.length === 0) return;
+  const nextFile = async () => {
+    if (isSaving) return toast.info("Saving audio...");
+    if (ecFiles.length === 0) return;
 
-  await autoSaveIfNeeded();
-  setCurrentFileIndex((i) => (i + 1) % ecFiles.length);
-};
+    await autoSaveIfNeeded();
+    setCurrentFileIndex((i) => (i + 1) % ecFiles.length);
+  };
 
-const prevFile = async () => {
-  if (isSaving) return toast.info("Saving audio...");
-  if (ecFiles.length === 0) return;
+  const prevFile = async () => {
+    if (isSaving) return toast.info("Saving audio...");
+    if (ecFiles.length === 0) return;
 
-  await autoSaveIfNeeded();
-  setCurrentFileIndex((i) => (i - 1 + ecFiles.length) % ecFiles.length);
-};
+    await autoSaveIfNeeded();
+    setCurrentFileIndex((i) => (i - 1 + ecFiles.length) % ecFiles.length);
+  };
 
   if (!metadata) return <div className="p-10">Loading...</div>;
 
@@ -372,6 +504,8 @@ const prevFile = async () => {
 
     // fixed, safe x-position for Y-axis label
     const yLabelX = 7; // left of tick labels (which are at x = 50)
+
+    
 
     return (
       <svg
@@ -495,30 +629,55 @@ const prevFile = async () => {
 
       {/* ---- Navigation Header ---- */}
       <div className="flex items-center justify-between mb-10">
-        <button
-          onClick={goPrevMetadata}
-          className="px-5 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition"
-        >
-          ← Previous
-        </button>
 
-        <div className="text-center">
-          <h1 className="text-3xl font-extrabold text-orange-700 drop-shadow-sm">
-            {metadata.intended_reaction}
-            <span className="text-gray-700 font-semibold"> — Catalyst ID {metadata.catalyst_id}</span>
-          </h1>
+  {/* LEFT SIDE */}
+  <div className="flex gap-3">
 
+    {/* Back to ALL experiments (only in single mode) */}
+    {singleMode && (
+      <button
+        onClick={() => navigate("/experiment")}
+        className="px-5 py-2 bg-gray-500 text-white rounded-lg shadow hover:bg-gray-600 transition"
+      >
+        ← All Experiments
+      </button>
+    )}
 
-        </div>
+    {/* Previous button (browse mode only) */}
+    {!singleMode && (
+      <button
+        onClick={goPrevMetadata}
+        className="px-5 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition"
+      >
+        ← Previous
+      </button>
+    )}
 
+  </div>
 
-        <button
-          onClick={goNextMetadata}
-          className="px-5 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition"
-        >
-          Next →
-        </button>
-      </div>
+  {/* TITLE */}
+  <div className="text-center">
+    <h1 className="text-3xl font-extrabold text-orange-700 drop-shadow-sm">
+      {metadata.intended_reaction}
+      <span className="text-gray-700 font-semibold">
+        {" "}— Catalyst ID {metadata.catalyst_id}
+      </span>
+    </h1>
+  </div>
+
+  {/* RIGHT SIDE */}
+  <div>
+    {!singleMode && (
+      <button
+        onClick={goNextMetadata}
+        className="px-5 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition"
+      >
+        Next →
+      </button>
+    )}
+  </div>
+
+</div>
 
       {/* ---- Two Column Layout ---- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -551,10 +710,8 @@ const prevFile = async () => {
                           {formatKey(key)}
                         </div>
                         <div className="text-[12px] text-gray-800 truncate">
-                          {value !== null && typeof value === "object"
-                            ? JSON.stringify(value)
-                            : value ?? ""}
-                        </div>
+                        {renderValue(key, value)}
+                      </div>
                         <div className="border-b border-orange-100 mt-1 mb-1"></div>
                       </div>
                     ))}
@@ -615,31 +772,76 @@ const prevFile = async () => {
                   <button
                     onClick={isRecording ? stopRecording : startRecording}
                     className={`px-6 py-2 rounded-lg font-semibold text-white shadow 
-                     ${isRecording ? "bg-red-600" : "bg-blue-600 hover:bg-blue-700"}`}
+        ${isRecording ? "bg-red-600" : "bg-blue-600 hover:bg-blue-700"}`}
                   >
                     {isRecording ? "⏹ Stop Recording" : "🎤 Start Recording"}
                   </button>
 
+                  {/*  TRANSCRIPT BOX ALWAYS VISIBLE */}
+                  <div className="mt-4 p-3 rounded-lg border border-orange-200 bg-[#FFF8F1]">
+                    <div className="text-sm font-semibold text-orange-700 mb-1">
+                      Live transcript
+                    </div>
+
+                    <textarea
+                      value={(transcript + " " + interimTranscript).trim()}
+                      onChange={(e) => {
+                        setTranscript(e.target.value);
+                        setInterimTranscript("");
+                      }}
+                      placeholder="Transcript will appear here..."
+                      className="w-full min-h-[80px] p-2 text-sm border rounded-md resize-y focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    />
+
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigator.clipboard.writeText((transcript + " " + interimTranscript).trim())
+                        }
+                        className="px-3 py-1 text-sm bg-white border border-orange-200 rounded hover:bg-orange-50"
+                      >
+                        Copy
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTranscript("");
+                          setInterimTranscript("");
+                          toast.info("Transcript cleared. Recording kept.");
+                        }}
+                        className="px-3 py-1 text-sm bg-white border border-orange-200 rounded hover:bg-orange-50"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/*  AUDIO PREVIEW ONLY AFTER STOP */}
                   {audioURL && (
                     <div className="mt-4">
                       <audio controls src={audioURL} className="w-full mb-3" />
+
                       <div className="flex gap-3 justify-center">
-                   <button
-                    onClick={async () => {
-                      const ok = await uploadAudio(audioBlob);
-                      if (ok) toast.success("Audio saved!");
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700"
-                  >
-                    Save
-                  </button>
-
-
+                        <button
+                          onClick={async () => {
+                            const ok = await uploadAudio(audioBlob);
+                            if (ok) toast.success("Audio saved!");
+                          }}
+                          className="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700"
+                        >
+                          Save
+                        </button>
 
                         <button
                           onClick={() => {
                             setAudioBlob(null);
                             setAudioURL(null);
+                            setTranscript("");
+                            setInterimTranscript("");
+
+                            toast.info("Recording deleted.");
                           }}
                           className="px-4 py-2 bg-red-600 text-white rounded-lg shadow hover:bg-red-700"
                         >

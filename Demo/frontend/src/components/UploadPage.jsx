@@ -1,16 +1,17 @@
 import React, { useState } from "react";
 import { config } from "../config";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+
+
 const ExperimentDataUpload = () => {
-  const location = useLocation();
-  const metadataId = location.state?.metadataId;
+  const { metadataId } = useParams();
   const navigate = useNavigate();
+
   const [files, setFiles] = useState([]);
   const [message, setMessage] = useState("");
-
   const handleFileChange = (e) => {
-    const selected = [...e.target.files];
-
+  const selected = [...e.target.files];
+  
     //  Prevent multiple ZIP files
     const zipCount = selected.filter(f => f.name.toLowerCase().endsWith(".zip")).length;
 
@@ -23,47 +24,49 @@ const ExperimentDataUpload = () => {
   };
 
   const handleUpload = async () => {
-    if (!metadataId) {
-      setMessage("⚠ No metadata ID found. Please create metadata first.");
-      return;
-    }
+  if (!metadataId) {
+    setMessage("No metadata ID found. Please create metadata first.");
+    return;
+  }
 
-    if (files.length === 0) {
-      setMessage("Please select files.");
-      return;
-    }
+  if (files.length === 0) {
+    setMessage("Please select files.");
+    return;
+  }
 
-    const formData = new FormData();
-    formData.append("metadata_id", metadataId);
+  const formData = new FormData();
+  formData.append("metadata_id", metadataId);
 
-    files.forEach((file) => {
-      formData.append("files", file);
+  files.forEach((file) => {
+    formData.append("files", file);
+  });
+
+  try {
+    const res = await fetch(`${config.BASE_URL}experiment/upload/`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
     });
 
-    try {
-      const res = await fetch(`${config.BASE_URL}experiment/upload/`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
+    const data = await res.json();
 
-      const data = await res.json();
+    if (res.ok) {
+      setMessage("Upload successful!");
 
-      if (res.ok) {
-        setMessage("Upload successful!");
-        setTimeout(() => {
-          navigate("/");
-        }, 1200);
-      } else {
-        setMessage("Upload failed: " + data.error);
-      }
+      //  OPEN USER EXPERIMENT VIEW
+    setTimeout(() => {
+            navigate(`/experiment/${metadataId}`);
+          }, 1200);
 
-    } catch (err) {
-      console.error(err);
-      setMessage("Server error.");
+    } else {
+      setMessage("Upload failed: " + data.error);
     }
-  };
 
+  } catch (err) {
+    console.error(err);
+    setMessage("Server error.");
+  }
+};
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-rose-50 text-gray-800 pt-28 px-6 flex flex-col items-center">
       <div className="max-w-xl w-full p-8 bg-white shadow-lg rounded-2xl border border-orange-200">

@@ -48,10 +48,10 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/start" element={<Start />} />
-          <Route path="/upload" element={<ExperimentDataUpload />} />
-
+          <Route path="/upload/:metadataId" element={<ExperimentDataUpload />} />
           {/* Experiment Viewer */}
-         <Route path="/experiment" element={<ExperimentDetailedViewer />} />
+          <Route path="/experiment" element={<ExperimentDetailedViewer />} />
+          <Route path="/experiment/:id" element={<ExperimentDetailedViewer />} />
 
           <Route path="/metadata" element={<MetadataForm />} />
           <Route path="/contact" element={<Contact />} />

@@ -102,7 +102,7 @@ try {
     if (data.status === "success") {
       showMessage("Metadata saved successfully!", "success");
 
-      setTimeout(() => navigate("/upload", { state: { metadataId: data.id } }), 800);
+      setTimeout(() => navigate(`/upload/${data.id}`), 800);
 
     } else {
       showMessage("Error saving metadata", "error");
