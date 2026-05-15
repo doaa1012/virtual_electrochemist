@@ -25,7 +25,7 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 import subprocess, os
 from django.conf import settings
-from .models import ExperimentMetadata, ExperimentFolder, ExperimentFile, ExperimentDescription
+from .models import ExperimentMetadata, ExperimentFolder, ExperimentFile, ExperimentDescription,ConsentRecord
 from django.forms.models import model_to_dict
 import json
 import numpy as np
@@ -46,45 +46,64 @@ def get_session_id(request):
 
 
 # -----------------------------------------
-# 1. Start Session + Save cookie
+# 1. Update Session + Save cookie
 # -----------------------------------------
+
 @csrf_exempt
 @api_view(["POST"])
-def start_user_session(request):
+def update_virtual_user(request):
+
     try:
-        data = request.data
-        session_id = str(uuid.uuid4())
 
-        # Create virtual user
-        user = VirtualUser.objects.create(
-            name=data.get("name", ""),
-            affiliation=data.get("affiliation", ""),
-            email=data["email"],
-            consent=data.get("consent", False),
+        # --------------------------------------------
+        # Get session from cookie
+        # --------------------------------------------
+        session_id = request.COOKIES.get("session_id")
+
+        if not session_id:
+            return Response(
+                {"error": "No active session found"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # --------------------------------------------
+        # Find user
+        # --------------------------------------------
+        user = VirtualUser.objects.filter(
             session_id=session_id
-        )
+        ).first()
 
-        # Prepare response
-        response = Response(
-            {"message": "User created", "user_id": user.id, "session_id": session_id},
-            status=status.HTTP_201_CREATED
-        )
+        if not user:
+            return Response(
+                {"error": "Virtual user not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        # Store cookie
-        response.set_cookie(
-            key="session_id",
-            value=session_id,
-            httponly=False,  # change to True in production
-            secure=False,
-            samesite="Lax",
-            max_age=7 * 24 * 60 * 60,  # 7 days
-        )
+        # --------------------------------------------
+        # Update fields
+        # --------------------------------------------
+        data = request.data
 
-        return response
+        user.name = data.get("name", "")
+        user.affiliation = data.get("affiliation", "")
+        user.email = data.get("email", "")
+
+        user.save()
+
+        return Response({
+            "status": "success",
+            "user_id": user.id
+        })
 
     except Exception as e:
-        return Response({"error": str(e)}, status=500)
 
+        import traceback
+        traceback.print_exc()
+
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 # -----------------------------------------
 # 2. Get VirtualUser from cookie
@@ -479,3 +498,96 @@ def save_file_audio(request, file_id):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+@csrf_exempt
+@api_view(["POST"])
+def save_consent(request):
+
+    try:
+        data = request.data
+
+        # --------------------------------------------
+        # Validate required consents
+        # --------------------------------------------
+        required_consents = [
+            data.get("privacy"),
+            data.get("participate"),
+            data.get("audio"),
+            data.get("ai"),
+            data.get("publish"),
+        ]
+
+        if not all(required_consents):
+            return Response(
+                {"error": "All required consents must be accepted."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # --------------------------------------------
+        # Create session
+        # --------------------------------------------
+        session_id = str(uuid.uuid4())
+
+        # --------------------------------------------
+        # Create virtual user
+        # --------------------------------------------
+        virtual_user = VirtualUser.objects.create(
+            name=data.get("name", ""),
+            affiliation=data.get("affiliation", ""),
+            email=data.get("email", ""),
+            session_id=session_id
+        )
+
+        # --------------------------------------------
+        # Save consent
+        # --------------------------------------------
+        consent = ConsentRecord.objects.create(
+            virtual_user=virtual_user,
+
+            privacy_accepted=data.get("privacy", False),
+
+            participate=data.get("participate", False),
+
+            audio_consent=data.get("audio", False),
+
+            ai_processing_consent=data.get("ai", False),
+
+            publish_consent=data.get("publish", False),
+
+            author_consent=data.get("author", False),
+
+            consent_version="v1.0",
+
+            ip_address=request.META.get("REMOTE_ADDR"),
+
+            user_agent=request.META.get("HTTP_USER_AGENT"),
+        )
+
+        # --------------------------------------------
+        # Response
+        # --------------------------------------------
+        response = Response({
+            "status": "success",
+            "virtual_user_id": virtual_user.id,
+            "consent_id": consent.id,
+            "session_id": session_id,
+        })
+
+        # --------------------------------------------
+        # Save cookie
+        # --------------------------------------------
+        response.set_cookie(
+            key="session_id",
+            value=session_id,
+            httponly=False,
+            secure=False,
+            samesite="Lax",
+            max_age=7 * 24 * 60 * 60,
+        )
+
+        return response
+
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

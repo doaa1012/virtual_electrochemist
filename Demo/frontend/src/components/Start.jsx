@@ -7,7 +7,7 @@ const Start = () => {
     name: "",
     affiliation: "",
     email: "",
-    consent: false,
+   
   });
 
   const [checkingSession, setCheckingSession] = useState(true);
@@ -143,21 +143,7 @@ const Start = () => {
             />
           </div>
 
-          {/* Consent */}
-          <div className="flex items-start space-x-3 mt-6 bg-orange-50 p-4 rounded-xl border border-orange-100">
-            <input
-              type="checkbox"
-              name="consent"
-              checked={formData.consent}
-              onChange={handleChange}
-              className="w-5 h-5 text-orange-600 border-orange-300 rounded"
-            />
-            <p className="text-sm text-gray-700 leading-relaxed">
-              I consent to the collection and processing of data (cursor,
-              handwriting, sound, audio/video recording, and transcription)
-              for research and analysis purposes.
-            </p>
-          </div>
+    
 
           <div className="text-center mt-10">
             <button

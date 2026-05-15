@@ -22,9 +22,17 @@ urlpatterns = [
     path("admin/", admin.site.urls),
 
     # -------------------------------
+    # Consent API
+    # -------------------------------
+    path("api/consent/", save_consent, name="save_consent"),
+
+
+    # -------------------------------
     # Virtual User Session API
     # -------------------------------
-    path("api/users/start/", start_user_session, name="start_user_session"),
+    path(
+    "api/virtualuser/update/", update_virtual_user, name="update_virtual_user"),
+    #path("api/users/start/", start_user_session, name="start_user_session"),
     path("api/session/status/", session_status, name="session_status"),
     path("api/virtualuser/", get_virtual_user, name="get_virtual_user"),
     path("api/save-session/", save_session, name="save_session"),
@@ -57,5 +65,4 @@ urlpatterns = [
         name="experiment_details"
     ),
 
-   
 ]

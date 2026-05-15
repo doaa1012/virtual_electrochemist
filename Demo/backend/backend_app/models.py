@@ -7,10 +7,10 @@ from django.conf import settings
 # Virtual User (session-based lightweight user)
 # ---------------------------------------------------------
 class VirtualUser(models.Model):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, blank=True, null=True)
     affiliation = models.CharField(max_length=100, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
-    consent = models.BooleanField(default=False)
+    #consent = models.BooleanField(default=False)
     session_id = models.CharField(max_length=100, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -20,7 +20,56 @@ class VirtualUser(models.Model):
     def __str__(self):
         return self.name or f"Anonymous ({self.session_id})"
 
+class ConsentRecord(models.Model):
 
+    virtual_user = models.ForeignKey(
+        VirtualUser,
+        on_delete=models.CASCADE,
+        related_name="consents"
+    )
+
+    # Individual consent items
+    privacy_accepted = models.BooleanField(default=False)
+    participate = models.BooleanField(default=False)
+
+    audio_consent = models.BooleanField(default=False)
+
+    ai_processing_consent = models.BooleanField(default=False)
+
+    publish_consent = models.BooleanField(default=False)
+
+    author_consent = models.BooleanField(default=False)
+
+    # GDPR tracking
+    consent_version = models.CharField(
+        max_length=20,
+        default="v1.0"
+    )
+
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True
+    )
+
+    user_agent = models.TextField(
+        null=True,
+        blank=True
+    )
+
+    withdrawn = models.BooleanField(default=False)
+
+    withdrawn_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
+
+    field_created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "ConsentRecord"
+
+    def __str__(self):
+        return f"Consent {self.id} - {self.virtual_user}"
 # ---------------------------------------------------------
 # Experiment Metadata
 # add: created_by (Django user) + virtual_user

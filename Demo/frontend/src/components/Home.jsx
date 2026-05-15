@@ -1,16 +1,16 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 const Home = () => {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-rose-50 text-gray-800 font-sans">
-      
-      
+
+
       {/* Main Content */}
       <div className="pt-28 px-6 flex flex-col items-center text-center">
-        
+
         {/* Hero Section */}
         <div className="max-w-3xl">
           <h2 className="text-4xl sm:text-5xl font-extrabold text-orange-700 mb-6 leading-tight">
@@ -22,11 +22,15 @@ const Home = () => {
             and automated feature discovery in electrochemical analysis.
           </p>
           <button
-            onClick={() => navigate("/start")}
+            onClick={() => navigate("/consent")}
             className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-full font-semibold shadow-md hover:shadow-lg transition-all"
           >
-            Get Started
+            Start Participation
           </button>
+
+          <p className="text-sm text-gray-500 mt-3">
+            You will be asked to provide consent before participating.
+          </p>
         </div>
 
         {/* Cards Section */}
@@ -55,13 +59,19 @@ const Home = () => {
             <div className="w-full h-44 flex items-center justify-center rounded-xl bg-gradient-to-br from-orange-50 to-amber-100 text-orange-700 font-medium border border-orange-200 mb-5">
               🎥 Video Placeholder
             </div>
-            
+
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="mt-20 text-gray-500 text-sm">
+        <footer className="mt-20 text-gray-500 text-sm text-center">
           © {new Date().getFullYear()} Virtual Electrochemist — All Rights Reserved.
+
+          <div className="mt-2">
+            <Link to="/privacy" className="text-orange-600 hover:underline">
+              Privacy Policy
+            </Link>
+          </div>
         </footer>
       </div>
     </div>

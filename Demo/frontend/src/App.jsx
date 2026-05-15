@@ -7,7 +7,9 @@ import ExperimentDataUpload from "./components/UploadPage";
 import ExperimentDetailedViewer from "./components/ExperimentDetailedViewer";
 import Contact from "./components/contact";
 import MetadataForm from "./components/MetadataForm";
-
+import PrivacyPolicy from "./components/PrivacyPolicy";
+import Consent from "./components/Consent";
+import logo from "./assets/logo.png";
 const App = () => {
   return (
     <Router>
@@ -16,12 +18,14 @@ const App = () => {
 
         {/* Navbar */}
         <nav className="flex items-center justify-between px-8 py-4 bg-white/90 shadow-md border-b border-orange-100 fixed top-0 left-0 w-full z-50 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <img src="/src/assets/logo.png" alt="Logo" className="w-15 h-15" />
-            <h1 className="text-2xl font-bold text-orange-600">
-              Virtual Electrochemist
-            </h1>
-          </div>
+         
+        <Link to="/" className="flex items-center gap-3">
+        <img src={logo} alt="Logo" className="w-10 h-10 object-contain" />
+        <h1 className="text-2xl font-bold text-orange-600 leading-none">
+          Virtual Electrochemist
+        </h1>
+      </Link>
+     
 
           <ul className="hidden sm:flex gap-6 text-gray-700 font-medium">
             <li>
@@ -55,6 +59,8 @@ const App = () => {
 
           <Route path="/metadata" element={<MetadataForm />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/consent" element={<Consent />} />
         </Routes>
 
       </div>
