@@ -326,7 +326,6 @@ const payload = {
         </div>
 
     )}
-
 </div>
 </div>
         <p className="text-gray-600 text-center mb-6">
