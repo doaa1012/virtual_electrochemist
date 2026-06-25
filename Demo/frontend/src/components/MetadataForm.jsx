@@ -1,11 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { config } from "../config";
 import { useNavigate } from "react-router-dom";
+
 
 const MetadataForm = () => {
   const navigate = useNavigate();
   const [message, setMessage] = useState({ text: "", type: "" });
+  const [participant, setParticipant] = useState(null);
 
+const [restore, setRestore] = useState({
+    participant_id:"",
+    recovery_key:""
+});
   const [form, setForm] = useState({
     intended_reaction: "",
     catalyst_id: "",
@@ -40,10 +46,69 @@ const MetadataForm = () => {
     setMessage({ text, type });
     setTimeout(() => setMessage({ text: "", type: "" }), 4000);
   };
+useEffect(()=>{
 
-  const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+loadParticipant();
+},[]);
+const loadParticipant = async () => {
 
+    try{
+
+        const res = await fetch(
+
+            "/api/virtualuser/",
+            {
+                credentials:"include"
+            }
+
+        );
+
+
+        if(res.ok){
+
+            const data = await res.json();
+
+            console.log("participant",data);
+
+
+            setParticipant(data);
+
+
+            setRestore({
+
+                participant_id:
+                    data.participant_id || "",
+
+                recovery_key:
+                    data.recovery_key || ""
+
+            });
+
+        }
+
+        else{
+
+            setParticipant(null);
+
+        }
+
+    }
+
+    catch(err){
+
+        console.log(err);
+
+    }
+
+}
+const handleChange = (e) => {
+  const { name, value } = e.target;
+
+  setForm((prev) => ({
+    ...prev,
+    [name]: value,
+  }));
+};
   // -------------------------------
   // UPLOAD + AUTO-FILL METADATA
   // -------------------------------
@@ -57,10 +122,11 @@ const MetadataForm = () => {
     formData.append("file", file);
 
     try {
-      const res = await fetch(`${config.BASE_URL}api/metadata/extract/`, {
-        method: "POST",
-        body: formData,
-      });
+ const res = await fetch(`${config.BASE_URL}api/metadata/extract/`, {
+  method: "POST",
+  credentials: "include",
+  body: formData,
+});
 
       const data = await res.json();
 
@@ -82,32 +148,101 @@ const MetadataForm = () => {
   // SAVE METADATA + REDIRECT
   // -------------------------------
   const handleSubmit = async (e) => {
+
     e.preventDefault();
 
-    const res = await fetch(`${config.BASE_URL}api/metadata/create/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+const payload = {
 
-   let data;
-try {
-  data = await res.json();
-} catch {
-  showMessage("Server returned invalid response", "error");
-  return;
-}
+    ...form,
+
+    participant_id:
+        restore.participant_id || null,
+
+    recovery_key:
+        restore.recovery_key || null
+
+};
+    try {
+        const res = await fetch(
+
+            `${config.BASE_URL}api/metadata/create/`,
+
+            {
+
+                method: "POST",
+
+                credentials: "include",
+
+                headers: {
+
+                    "Content-Type": "application/json"
+
+                },
+
+                body: JSON.stringify(payload)
+            }
+        );
+        let data;
 
 
-    if (data.status === "success") {
-      showMessage("Metadata saved successfully!", "success");
+        try {
 
-      setTimeout(() => navigate(`/upload/${data.id}`), 800);
+            data = await res.json();
 
-    } else {
-      showMessage("Error saving metadata", "error");
+        }
+
+        catch {
+
+            showMessage(
+
+                "Server returned invalid response",
+
+                "error"
+
+            );
+
+            return;
+
+        }
+
+
+
+        if (
+
+            res.ok &&
+
+            data.status === "success"
+
+        ) {
+            showMessage(
+                "Metadata saved successfully!",
+                "success"
+            );
+            setTimeout(() => {
+
+                navigate(
+
+                    `/upload/${data.id}`
+                );
+            }, 800);
+
+        }
+        else {
+            showMessage(
+                data.message ||
+                "Error saving metadata",
+                "error"
+            );
+        }
     }
-  };
+    catch (err) {
+        console.error(err);
+        showMessage(
+            "Server error while saving metadata",
+            "error"
+        );
+    }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-rose-50 text-gray-800 pt-28 px-6 flex flex-col items-center">
@@ -116,7 +251,84 @@ try {
         <h2 className="text-4xl font-extrabold text-orange-700 mb-3 text-center">
           Experiment Metadata
         </h2>
+<div className="bg-orange-50 p-5 rounded-xl mb-6">
 
+<div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 mb-8">
+
+    <h3 className="text-lg font-semibold text-slate-800 mb-2">
+        Participant Credentials
+    </h3>
+
+    <p className="text-sm text-slate-500 mb-5">
+        Loaded automatically from your current browser session.
+        You may edit them manually if you want to associate this
+        experiment with another participant.
+    </p>
+
+
+    <div className="grid md:grid-cols-2 gap-4">
+
+        <div>
+
+            <label className="block text-sm font-medium mb-2">
+                Participant ID
+            </label>
+
+            <input
+                value={restore.participant_id}
+                onChange={(e)=>
+                    setRestore(prev=>({
+                        ...prev,
+                        participant_id:e.target.value
+                    }))
+                }
+                placeholder="VE-XXXXXXXX"
+                className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-orange-400"
+            />
+
+        </div>
+
+
+
+        <div>
+
+            <label className="block text-sm font-medium mb-2">
+                Recovery Key
+            </label>
+
+            <input
+                value={restore.recovery_key}
+                onChange={(e)=>
+                    setRestore(prev=>({
+                        ...prev,
+                        recovery_key:e.target.value
+                    }))
+                }
+                placeholder="Recovery Key"
+                className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-orange-400"
+            />
+
+        </div>
+
+    </div>
+
+
+    {participant && (
+
+        <div className="mt-5 bg-green-50 border border-green-200 rounded-xl p-4">
+
+            <p className="text-green-700 text-sm">
+
+                ✓ Credentials loaded from current session
+
+            </p>
+
+        </div>
+
+    )}
+
+</div>
+</div>
         <p className="text-gray-600 text-center mb-6">
           Upload metadata from Excel or enter values manually.
         </p>

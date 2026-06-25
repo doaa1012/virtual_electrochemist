@@ -3,7 +3,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import VirtualUser
+from .models import VirtualUser, generate_key
 import uuid
 from django.conf import settings
 from rest_framework.decorators import api_view
@@ -32,7 +32,16 @@ import numpy as np
 import csv
 from django.conf import settings
 from django.http import JsonResponse, HttpResponseBadRequest
+import secrets
+import logging
+logger = logging.getLogger(__name__)
 
+def generate_pid():
+    return f"VE-{secrets.token_hex(4).upper()}"
+
+
+def generate_key():
+    return secrets.token_urlsafe(32)
 # -----------------------------------------
 # Helper: Get session_id from cookie/header
 # -----------------------------------------
@@ -52,7 +61,6 @@ def get_session_id(request):
 @csrf_exempt
 @api_view(["POST"])
 def update_virtual_user(request):
-
     try:
 
         # --------------------------------------------
@@ -70,7 +78,7 @@ def update_virtual_user(request):
         # Find user
         # --------------------------------------------
         user = VirtualUser.objects.filter(
-            session_id=session_id
+            cookie_session=session_id
         ).first()
 
         if not user:
@@ -83,10 +91,18 @@ def update_virtual_user(request):
         # Update fields
         # --------------------------------------------
         data = request.data
+        user.author_consent=data.get(
+                "author",
+                False)
 
-        user.name = data.get("name", "")
-        user.affiliation = data.get("affiliation", "")
-        user.email = data.get("email", "")
+        if user.author_consent:
+            user.name=data.get("name")
+            user.affiliation=data.get("affiliation")
+            user.email=data.get("email")
+        else:
+            user.name=None
+            user.affiliation=None
+            user.email=None
 
         user.save()
 
@@ -111,21 +127,61 @@ def update_virtual_user(request):
 @csrf_exempt
 @api_view(["GET"])
 def get_virtual_user(request):
+
     session_id = get_session_id(request)
 
     if not session_id:
-        return JsonResponse({"error": "No session_id provided"}, status=400)
+        return JsonResponse({
+            "user_id": None,
+            "participant_id": None,
+            "recovery_key": None,
+            "author_consent": False,
+            "name": None,
+            "affiliation": None,
+            "email": None,
+        }, status=200)
 
-    user = VirtualUser.objects.filter(session_id=session_id).first()
+
+    user = VirtualUser.objects.filter(
+        cookie_session=session_id
+    ).first()
+
 
     if not user:
-        return JsonResponse({"error": "User not found"}, status=404)
+        return JsonResponse({
+            "user_id": None,
+            "participant_id": None,
+            "recovery_key": None,
+            "author_consent": False,
+            "name": None,
+            "affiliation": None,
+            "email": None,
+        }, status=200)
 
     return JsonResponse({
-        "user_id": user.id,
-        "name": user.name,
-        "affiliation": user.affiliation,
-        "email": user.email,
+
+
+        "user_id":user.id,
+
+        "participant_id":
+            user.participant_id,
+
+        "recovery_key":
+            user.recovery_key,
+
+        "author_consent":
+            user.author_consent,
+
+        "name":
+            user.name,
+
+        "affiliation":
+            user.affiliation,
+
+        "email":
+            user.email
+
+
     })
 
 
@@ -140,7 +196,10 @@ def session_status(request):
     if not session_id:
         return Response({"error": "Missing session_id"}, status=400)
 
-    user = VirtualUser.objects.filter(session_id=session_id).first()
+    user = VirtualUser.objects.filter(
+            cookie_session=session_id,
+            is_deleted=False
+        ).first()
 
     if not user:
         return Response({"error": "Session not found"}, status=404)
@@ -164,7 +223,7 @@ def save_session(request):
         return JsonResponse({"error": "No active session found."}, status=400)
 
     try:
-        user = VirtualUser.objects.get(session_id=session_id)
+        user = VirtualUser.objects.get(cookie_session=session_id)
     except VirtualUser.DoesNotExist:
         return JsonResponse({"error": "User not found."}, status=404)
 
@@ -189,11 +248,9 @@ def extract_metadata_excel(request):
 @api_view(["POST"])
 def create_metadata(request):
     data = request.data.copy()
-
     # -------------------------------------------------------
     # 1. Clean numeric fields (strip units safely)
     # -------------------------------------------------------
-
     def to_float(value):
         if value is None:
             return None
@@ -221,15 +278,57 @@ def create_metadata(request):
         if field in data:
             data[field] = converter(data[field])
 
-    # -------------------------------------------------------
-    # 2. Attach VirtualUser OR real Django user
-    # -------------------------------------------------------
-    session_id = request.COOKIES.get("session_id")
-    virtual_user = (
-        VirtualUser.objects.filter(session_id=session_id).first()
-        if session_id else None
-    )
+    ######################################################
+    # Identify uploader
+    ######################################################
+    virtual_user = None
+    participant_id = data.get("participant_id")
+    recovery_key = data.get("recovery_key")
+    ###########################################
+    # 1) Participant credentials
+    ###########################################
+    if participant_id and recovery_key:
 
+        virtual_user = VirtualUser.objects.filter(
+
+            participant_id=participant_id,
+            recovery_key=recovery_key,
+            is_deleted=False
+
+        ).first()
+
+
+    ###########################################
+    # 2) Existing session cookie
+    ###########################################
+    if not virtual_user:
+
+        session_id = request.COOKIES.get("session_id")
+
+        if session_id:
+
+            virtual_user = VirtualUser.objects.filter(
+
+                cookie_session=session_id,
+                is_deleted=False
+
+            ).first()
+
+    ###########################################
+    # 3) Completely new visitor
+    ###########################################
+    if not virtual_user:
+
+        session_id = request.COOKIES.get("session_id")
+
+        virtual_user = VirtualUser.objects.create(
+
+            cookie_session=session_id
+
+        )
+    ###########################################
+    # 3) django user
+    ###########################################
     django_user = request.user if request.user.is_authenticated else None
 
     # -------------------------------------------------------
@@ -498,22 +597,18 @@ def save_file_audio(request, file_id):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
 @csrf_exempt
 @api_view(["POST"])
 def save_consent(request):
-
     try:
         data = request.data
 
-        # --------------------------------------------
-        # Validate required consents
-        # --------------------------------------------
         required_consents = [
-            data.get("privacy"),
-            data.get("participate"),
-            data.get("audio"),
-            data.get("ai"),
-            data.get("publish"),
+            data.get("privacy", False),
+            data.get("participate", False),
+            data.get("audio", False)
         ]
 
         if not all(required_consents):
@@ -522,72 +617,104 @@ def save_consent(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # --------------------------------------------
-        # Create session
-        # --------------------------------------------
-        session_id = str(uuid.uuid4())
+        cookie_session = secrets.token_urlsafe(32)
 
-        # --------------------------------------------
-        # Create virtual user
-        # --------------------------------------------
-        virtual_user = VirtualUser.objects.create(
-            name=data.get("name", ""),
-            affiliation=data.get("affiliation", ""),
-            email=data.get("email", ""),
-            session_id=session_id
-        )
+        session_id = get_session_id(request)
 
-        # --------------------------------------------
-        # Save consent
-        # --------------------------------------------
+        virtual_user = VirtualUser.objects.filter(
+                cookie_session=session_id
+        ).first()
+
+
+        if virtual_user:
+            pass
+        else:
+            virtual_user = VirtualUser.objects.create(
+
+                cookie_session=session_id,
+
+                author_consent=data.get("author"),
+
+                name=data.get("name"),
+
+                affiliation=data.get("affiliation"),
+
+                email=data.get("email")
+
+            )
+
         consent = ConsentRecord.objects.create(
             virtual_user=virtual_user,
-
             privacy_accepted=data.get("privacy", False),
-
             participate=data.get("participate", False),
-
             audio_consent=data.get("audio", False),
-
-            ai_processing_consent=data.get("ai", False),
-
-            publish_consent=data.get("publish", False),
-
-            author_consent=data.get("author", False),
-
             consent_version="v1.0",
-
             ip_address=request.META.get("REMOTE_ADDR"),
-
-            user_agent=request.META.get("HTTP_USER_AGENT"),
+            user_agent=request.META.get("HTTP_USER_AGENT")
         )
 
-        # --------------------------------------------
-        # Response
-        # --------------------------------------------
-        response = Response({
-            "status": "success",
-            "virtual_user_id": virtual_user.id,
-            "consent_id": consent.id,
-            "session_id": session_id,
-        })
+        response = Response(
+            {
+                "status": "success",
+                "virtual_user_id": virtual_user.id,
+                "consent_id": consent.id,
+                "participant_id": virtual_user.participant_id,
+                "recovery_key": virtual_user.recovery_key
+            },
+            status=status.HTTP_201_CREATED
+        )
 
-        # --------------------------------------------
-        # Save cookie
-        # --------------------------------------------
         response.set_cookie(
             key="session_id",
-            value=session_id,
-            httponly=False,
-            secure=False,
+            value=cookie_session,
+            httponly=True,
+            secure=False,  # True in production with HTTPS
             samesite="Lax",
-            max_age=7 * 24 * 60 * 60,
+            max_age=7 * 24 * 60 * 60
         )
 
         return response
 
     except Exception as e:
+        logger.exception(e)
         return Response(
-            {"error": str(e)},
+            {"error": "An unexpected error occurred while saving your consent. Please try again."},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+    
+
+@api_view(["POST"])
+def restore_session(request):
+
+    participant_id=request.data.get(
+
+    "participant_id" )
+
+    recovery_key=request.data.get(
+    "recovery_key")
+
+    user=VirtualUser.objects.filter(
+    participant_id=participant_id,
+    recovery_key=recovery_key,
+    is_deleted=False ).first()
+
+    if not user:
+        return Response(
+            {"error":"Invalid credentials"},
+            status=404
+        )
+    
+    cookie_session=secrets.token_urlsafe(32)
+    user.cookie_session=cookie_session
+    user.save()
+    response=Response(
+
+    {"status":"success"})
+
+    response.set_cookie(
+
+    "session_id",
+    cookie_session,
+    httponly=True,
+    samesite="Lax")
+    return response

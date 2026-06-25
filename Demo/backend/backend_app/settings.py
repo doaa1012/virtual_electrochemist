@@ -107,15 +107,19 @@ WSGI_APPLICATION = 'backend_app.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'db202601',
-        'USER': 'electron',
-        'PASSWORD': 'SomSecuer26',
+        'ENGINE': 'mssql',
+        'NAME': 'cv_narratives_db',
+        'USER': 'sa',
+        'PASSWORD': 'Sh1012@@@',
         'HOST': 'localhost',
-        'PORT': '3306',
+        'PORT': '1433',
+
+        'OPTIONS': {
+            'driver': 'ODBC Driver 17 for SQL Server',
+            'trust_server_certificate': True,
+        },
     }
 }
-
 
 
 

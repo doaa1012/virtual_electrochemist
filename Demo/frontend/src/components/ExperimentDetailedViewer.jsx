@@ -20,6 +20,7 @@ const ExperimentDetailedViewer = () => {
   const speechRecRef = React.useRef(null);
   const { id: routeId } = useParams();
   const navigate = useNavigate();
+  const [loading,setLoading] = useState(true);
   const id = routeId ? Number(routeId) : null;
   const singleMode = !!id;
   const stopRecorderAndWait = () =>
@@ -322,20 +323,38 @@ const ExperimentDetailedViewer = () => {
 };
 
   // 2) Load data for a single metadata ID
-  const loadMetadata = useCallback(async () => {
-    if (!currentMetadataId) return;
+const loadMetadata = useCallback(async () => {
 
+if (!currentMetadataId) {
+
+    setMetadata(null);
+    setFiles([]);
+    setEcFiles([]);
+
+    setLoading(false); // <-- important
+
+    return;
+}
+
+setLoading(true);
+
+  try {
     console.log("Loading experiment:", currentMetadataId);
 
     const res = await fetch(
       `${config.BASE_URL}experiment/${currentMetadataId}/details/`
     );
+
+    if (!res.ok) {
+      throw new Error("Experiment not found.");
+    }
+
     const data = await res.json();
 
-    setMetadata(data.metadata);
-    setFiles(data.files);
+    setMetadata(data.metadata || null);
+    setFiles(data.files || []);
 
-    const electrochemFiles = data.files.filter(
+    const electrochemFiles = (data.files || []).filter(
       (f) =>
         f.filename.toLowerCase().includes("cv") ||
         f.filename.toLowerCase().includes("lsv")
@@ -343,9 +362,16 @@ const ExperimentDetailedViewer = () => {
 
     setEcFiles(electrochemFiles);
     setCurrentFileIndex(0);
-
-  }, [currentMetadataId]);
-
+  } catch (err) {
+    console.error(err);
+    toast.error("Unable to load experiment details.");
+    setMetadata(null);
+    setFiles([]);
+    setEcFiles([]);
+  } finally {
+    setLoading(false);
+  }
+}, [currentMetadataId]);
   // 3) Load plot for selected file (still uses your Django endpoint)
   const loadPlot = useCallback(async () => {
     if (!ecFiles[currentFileIndex]) {
@@ -451,7 +477,47 @@ const ExperimentDetailedViewer = () => {
     setCurrentFileIndex((i) => (i - 1 + ecFiles.length) % ecFiles.length);
   };
 
-  if (!metadata) return <div className="p-10">Loading...</div>;
+ if (loading) {
+  return (
+    <div className="min-h-screen bg-[#FFF7ED] flex items-center justify-center p-6">
+      <div className="bg-white rounded-3xl shadow-lg border border-orange-200 p-10 text-center max-w-md">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-orange-700 mb-2">
+          Loading experiments
+        </h2>
+        <p className="text-gray-600">
+          Please wait while we prepare your experiment viewer.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+if (!metadata) {
+  return (
+    <div className="min-h-screen bg-[#FFF7ED] flex items-center justify-center p-6">
+      <div className="bg-white rounded-3xl shadow-lg border border-orange-200 p-10 text-center max-w-xl">
+        <div className="text-6xl mb-4">🧪</div>
+
+        <h2 className="text-3xl font-bold text-orange-700 mb-3">
+          No Experiments Yet
+        </h2>
+
+        <p className="text-gray-600 mb-6">
+          There are no uploaded experiments to display yet. Add experiment
+          metadata and files first, then return here to explore the data.
+        </p>
+
+<button
+onClick={() => navigate("/metadata")}
+className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-xl shadow"
+>
+Add Experiment Metadata
+</button>
+      </div>
+    </div>
+  );
+}
 
   // ---------- SIMPLE SVG PLOT HELPERS ----------
   const renderSvgPlot = () => {
