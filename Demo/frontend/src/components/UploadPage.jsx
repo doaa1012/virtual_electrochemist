@@ -54,7 +54,7 @@ const handleUpload = async () => {
   try {
 
     const res = await fetch(
-      "/experiment/upload/",
+      "experiment/upload/",
       {
         method: "POST",
 
