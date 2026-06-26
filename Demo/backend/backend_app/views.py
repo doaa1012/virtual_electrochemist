@@ -603,6 +603,7 @@ def save_file_audio(request, file_id):
 @api_view(["POST"])
 def save_consent(request):
     try:
+
         data = request.data
 
         required_consents = [
@@ -612,28 +613,47 @@ def save_consent(request):
         ]
 
         if not all(required_consents):
+
             return Response(
-                {"error": "All required consents must be accepted."},
+                {
+                    "error": "All required consents must be accepted."
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        cookie_session = secrets.token_urlsafe(32)
+
+        ########################################################
+        # Get existing session or create a new one
+        ########################################################
 
         session_id = get_session_id(request)
 
+        if not session_id:
+            session_id = secrets.token_urlsafe(32)
+
+
+        ########################################################
+        # Find existing participant
+        ########################################################
+
         virtual_user = VirtualUser.objects.filter(
-                cookie_session=session_id
+
+            cookie_session=session_id
+
         ).first()
 
 
-        if virtual_user:
-            pass
-        else:
+        ########################################################
+        # Create participant if it does not exist
+        ########################################################
+
+        if not virtual_user:
+
             virtual_user = VirtualUser.objects.create(
 
                 cookie_session=session_id,
 
-                author_consent=data.get("author"),
+                author_consent=data.get("author", False),
 
                 name=data.get("name"),
 
@@ -643,43 +663,98 @@ def save_consent(request):
 
             )
 
+
+        ########################################################
+        # Store consent record
+        ########################################################
+
         consent = ConsentRecord.objects.create(
+
             virtual_user=virtual_user,
+
             privacy_accepted=data.get("privacy", False),
+
             participate=data.get("participate", False),
+
             audio_consent=data.get("audio", False),
+
             consent_version="v1.0",
+
             ip_address=request.META.get("REMOTE_ADDR"),
+
             user_agent=request.META.get("HTTP_USER_AGENT")
+
         )
+
+
+        ########################################################
+        # Response
+        ########################################################
 
         response = Response(
+
             {
+
                 "status": "success",
-                "virtual_user_id": virtual_user.id,
-                "consent_id": consent.id,
-                "participant_id": virtual_user.participant_id,
-                "recovery_key": virtual_user.recovery_key
+
+                "virtual_user_id":
+                    virtual_user.id,
+
+                "consent_id":
+                    consent.id,
+
+                "participant_id":
+                    virtual_user.participant_id,
+
+                "recovery_key":
+                    virtual_user.recovery_key
+
             },
+
             status=status.HTTP_201_CREATED
+
         )
 
+
+        ########################################################
+        # Save EXACT SAME session_id in browser cookie
+        ########################################################
+
         response.set_cookie(
+
             key="session_id",
-            value=cookie_session,
+
+            value=session_id,
+
             httponly=True,
-            secure=False,  # True in production with HTTPS
+
+            secure=False,      # True in production
+
             samesite="Lax",
+
             max_age=7 * 24 * 60 * 60
+
         )
+
 
         return response
 
+
     except Exception as e:
+
         logger.exception(e)
+
         return Response(
-            {"error": "An unexpected error occurred while saving your consent. Please try again."},
+
+            {
+
+                "error":
+                "An unexpected error occurred while saving your consent. Please try again."
+
+            },
+
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+
         )
     
 
