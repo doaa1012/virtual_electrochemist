@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { config } from "../config";
+
 import { toast } from "react-toastify";
 import { useParams, useNavigate } from "react-router-dom";
 
@@ -225,10 +225,11 @@ const ExperimentDetailedViewer = () => {
       const formData = new FormData();
       formData.append("audio", blob, "recording.webm");
 
-      const res = await fetch(`${config.BASE_URL}files/${fileId}/save-audio/`, {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch(`/files/${fileId}/save-audio/`, {
+  method: "POST",
+  credentials: "include",
+  body: formData,
+});
 
       const data = await res.json();
 
@@ -271,7 +272,9 @@ const ExperimentDetailedViewer = () => {
 
   // 1) Load list of all metadata IDs
   const loadAllMetadataIds = useCallback(async () => {
-    const res = await fetch(`${config.BASE_URL}experiment/list/`);
+    const res = await fetch("/experiment/list/", {
+    credentials: "include",
+});
     const data = await res.json();
     console.log("Experiment list loaded:", data.ids);
 
@@ -341,9 +344,9 @@ setLoading(true);
   try {
     console.log("Loading experiment:", currentMetadataId);
 
-    const res = await fetch(
-      `${config.BASE_URL}experiment/${currentMetadataId}/details/`
-    );
+    const res = await fetch(`/experiment/${currentMetadataId}/details/`, {
+  credentials: "include",
+});
 
     if (!res.ok) {
       throw new Error("Experiment not found.");
@@ -383,8 +386,11 @@ setLoading(true);
     console.log("Loading plot for:", fileUrl);
 
     const res = await fetch(
-      `${config.BASE_URL}experiment/plot/?file_url=${encodeURIComponent(fileUrl)}&file_id=${ecFiles[currentFileIndex].id}`
-    );
+  `/experiment/plot/?file_url=${encodeURIComponent(fileUrl)}&file_id=${ecFiles[currentFileIndex].id}`,
+  {
+    credentials: "include",
+  }
+);
 
 
     const data = await res.json();
