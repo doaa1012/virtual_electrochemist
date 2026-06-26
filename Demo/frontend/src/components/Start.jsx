@@ -149,17 +149,7 @@ const loadParticipant = async () => {
     checkSession();
 
     loadParticipant();
-console.log("participant",data);
 
-console.log(
-"participant_id",
-data.participant_id
-);
-
-console.log(
-"recovery_key",
-data.recovery_key
-);
 }, []);
 
   const handleSubmit = async (e) => {
@@ -213,71 +203,38 @@ data.recovery_key
     }
   };
 
-  const restoreSession = async () => {
-    try {
-      const response = await fetch(
-        "/api/restore-session/",
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(restore)
-        }
-      );
-const data = await response.json();
-
-if(response.ok){
-
-    localStorage.setItem(
-        "participant_id",
-        data.participant_id
-    );
-
-    localStorage.setItem(
-        "recovery_key",
-        data.recovery_key
-    );
-
-    setRestore({
-        participant_id:data.participant_id,
-        recovery_key:data.recovery_key
+const restoreSession = async () => {
+  try {
+    const response = await fetch("/api/restore-session/", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(restore)
     });
 
-    toast.success("Session restored");
+    const data = await response.json();
 
-    navigate("/experiment");
+    if (response.ok) {
+      localStorage.setItem("participant_id", data.participant_id);
+      localStorage.setItem("recovery_key", data.recovery_key);
 
-    return;
-}
+      setRestore({
+        participant_id: data.participant_id,
+        recovery_key: data.recovery_key
+      });
 
-toast.error("Invalid credentials");
-
-
-
-      toast.error(
-
-        "Invalid credentials"
-
-      );
-
-
-
-    }
-    catch {
-
-
-      toast.error(
-
-        "Unable to restore session"
-
-      );
-
+      toast.success("Session restored successfully");
+      navigate("/experiment");
+      return;
     }
 
-
-  };
+    toast.error(data.error || "Invalid credentials");
+  } catch {
+    toast.error("Unable to restore session");
+  }
+};
 
 
 if(checkingSession){
@@ -318,7 +275,7 @@ Loading participant...
 
         </p>
 
-{participant && (
+{participant?.participant_id && participant?.recovery_key && (
 
 <div className="mb-6 p-4 bg-green-50 border border-green-300 rounded-xl">
 
@@ -330,8 +287,6 @@ Existing Session Found
 You already completed consent for this browser session.
 No additional consent is required.
 </p>
-
-
 <p>
 
 Participant ID:
