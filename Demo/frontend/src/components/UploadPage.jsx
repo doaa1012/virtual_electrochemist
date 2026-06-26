@@ -52,7 +52,7 @@ const handleUpload = async () => {
   });
 
   try {
-const res = await fetch("/experiment/upload/", {
+const res = await fetch("/api/experiment/upload/", {
   method: "POST",
   credentials: "include",
   body: formData,
