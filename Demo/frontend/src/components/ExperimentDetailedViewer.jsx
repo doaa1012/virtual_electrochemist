@@ -344,15 +344,43 @@ setLoading(true);
   try {
     console.log("Loading experiment:", currentMetadataId);
 
-    const res = await fetch(`/api/experiment/${currentMetadataId}/details/`, {
-  credentials: "include",
-});
+const res = await fetch(
+    `/api/experiment/${currentMetadataId}/details/`,
+    {
+        credentials:"include"
+    }
+);
 
+
+console.log(res.status);
+
+console.log(
+    res.headers.get("content-type")
+);
+
+
+const text = await res.text();
+
+console.log(text);
     if (!res.ok) {
       throw new Error("Experiment not found.");
     }
 
-    const data = await res.json();
+   let data={};
+
+try{
+
+    data = JSON.parse(text);
+
+}
+catch{
+
+    console.log(
+        "NOT JSON"
+    );
+
+    return;
+}
 
     setMetadata(data.metadata || null);
     setFiles(data.files || []);
