@@ -122,7 +122,7 @@ const handleChange = (e) => {
     formData.append("file", file);
 
     try {
- const res = await fetch(`${config.BASE_URL}api/metadata/extract/`, {
+ const res = await fetch("/api/metadata/extract/", {
   method: "POST",
   credentials: "include",
   body: formData,
@@ -165,7 +165,7 @@ const payload = {
     try {
         const res = await fetch(
 
-            `${config.BASE_URL}api/metadata/create/`,
+            "/api/metadata/create/",
 
             {
 
