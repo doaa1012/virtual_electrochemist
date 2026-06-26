@@ -21,47 +21,66 @@ const ExperimentDataUpload = () => {
 
     setFiles(selected);
   };
-
- const handleUpload = async () => {
+const handleUpload = async () => {
 
   if (!metadataId) {
-    setMessage("No metadata ID found. Please create metadata first.");
+    setMessage(
+      "No metadata ID found. Please create metadata first."
+    );
     return;
   }
 
   if (files.length === 0) {
-    setMessage("Please select files.");
+    setMessage(
+      "Please select files."
+    );
     return;
   }
 
   const formData = new FormData();
 
-  formData.append("metadata_id", metadataId);
+  formData.append(
+    "metadata_id",
+    metadataId
+  );
 
   files.forEach((file) => {
-    formData.append("files", file);
+    formData.append(
+      "files",
+      file
+    );
   });
 
   try {
 
-    const res = await fetch("/experiment/upload/", {
+    const res = await fetch(
+      "/experiment/upload/",
+      {
+        method: "POST",
 
-      method: "POST",
+        credentials: "include",
 
-      credentials: "include",
-
-      body: formData,
-
-    });
-
-    console.log("Status:", res.status);
+        body: formData
+      }
+    );
 
     console.log(
+      "Status:",
+      res.status
+    );
 
+    console.log(
       "Content-Type:",
-
       res.headers.get("content-type")
+    );
 
+
+    // Read body ONCE
+    const text = await res.text();
+
+    console.log(
+      "Raw response:",
+      text
     );
 
 
@@ -69,38 +88,32 @@ const ExperimentDataUpload = () => {
 
     try {
 
-      data = await res.json();
+      data = text
+        ? JSON.parse(text)
+        : {};
 
     }
 
     catch {
 
-      const text = await res.text();
-
-      console.log("Raw response:", text);
-
       setMessage(
-
-        "Server returned an invalid response."
-
+        `Server returned an invalid response (${res.status}).`
       );
 
       return;
-
     }
 
 
     if (res.ok) {
 
-      setMessage("Upload successful!");
-
+      setMessage(
+        "Upload successful!"
+      );
 
       setTimeout(() => {
 
         navigate(
-
           `/experiment/${metadataId}`
-
         );
 
       }, 1200);
@@ -113,7 +126,9 @@ const ExperimentDataUpload = () => {
 
         data.error ||
 
-        "Upload failed."
+        data.message ||
+
+        `Upload failed (${res.status})`
 
       );
 
@@ -123,12 +138,13 @@ const ExperimentDataUpload = () => {
 
   catch (err) {
 
-    console.error(err);
+    console.error(
+      "Upload error:",
+      err
+    );
 
     setMessage(
-
       "Server error."
-
     );
 
   }
