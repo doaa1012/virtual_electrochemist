@@ -47,8 +47,8 @@ urlpatterns = [
     # Experiment Files Upload
     # -------------------------------
     path("api/experiment/upload/", upload_experiment_files, name="upload_experiment_files"),
-    path("experiment/plot/", experiment_plot),
-    path("files/<int:file_id>/save-audio/", save_file_audio),
+    path("api/experiment/plot/", experiment_plot),
+    path("api/files/<int:file_id>/save-audio/", save_file_audio),
 
 
 
@@ -56,11 +56,11 @@ urlpatterns = [
     # Experiment Viewer Endpoints
     # -------------------------------
     # List all experiments → used for forward/backward navigation
-    path("experiment/list/", experiment_list, name="experiment_list"),
+    path("api/experiment/list/", experiment_list, name="experiment_list"),
 
     # Retrieve metadata + all files for a given experiment
     path(
-        "experiment/<int:metadata_id>/details/",
+        "api/experiment/<int:metadata_id>/details/",
         experiment_details,
         name="experiment_details"
     ),
