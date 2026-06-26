@@ -149,7 +149,17 @@ const loadParticipant = async () => {
     checkSession();
 
     loadParticipant();
+console.log("participant",data);
 
+console.log(
+"participant_id",
+data.participant_id
+);
+
+console.log(
+"recovery_key",
+data.recovery_key
+);
 }, []);
 
   const handleSubmit = async (e) => {
@@ -216,6 +226,7 @@ const loadParticipant = async () => {
           body: JSON.stringify(restore)
         }
       );
+const data = await response.json();
 
 if(response.ok){
 
@@ -223,19 +234,25 @@ if(response.ok){
         "participant_id",
         data.participant_id
     );
+
     localStorage.setItem(
         "recovery_key",
         data.recovery_key
     );
+
     setRestore({
         participant_id:data.participant_id,
         recovery_key:data.recovery_key
     });
-    toast.success(
-        "Session created successfully"
-    );
+
+    toast.success("Session restored");
+
     navigate("/experiment");
+
+    return;
 }
+
+toast.error("Invalid credentials");
 
 
 
