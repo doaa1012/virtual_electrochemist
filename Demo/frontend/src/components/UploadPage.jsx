@@ -52,17 +52,11 @@ const handleUpload = async () => {
   });
 
   try {
-
-    const res = await fetch(
-      "experiment/upload/",
-      {
-        method: "POST",
-
-        credentials: "include",
-
-        body: formData
-      }
-    );
+const res = await fetch("/experiment/upload/", {
+  method: "POST",
+  credentials: "include",
+  body: formData,
+});
 
     console.log(
       "Status:",
