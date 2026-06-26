@@ -22,7 +22,8 @@ const ExperimentDataUpload = () => {
     setFiles(selected);
   };
 
-  const handleUpload = async () => {
+ const handleUpload = async () => {
+
   if (!metadataId) {
     setMessage("No metadata ID found. Please create metadata first.");
     return;
@@ -34,6 +35,7 @@ const ExperimentDataUpload = () => {
   }
 
   const formData = new FormData();
+
   formData.append("metadata_id", metadataId);
 
   files.forEach((file) => {
@@ -41,30 +43,96 @@ const ExperimentDataUpload = () => {
   });
 
   try {
+
     const res = await fetch("/experiment/upload/", {
+
       method: "POST",
+
       credentials: "include",
+
       body: formData,
+
     });
 
-    const data = await res.json();
+    console.log("Status:", res.status);
 
-    if (res.ok) {
-      setMessage("Upload successful!");
+    console.log(
 
-      //  OPEN USER EXPERIMENT VIEW
-    setTimeout(() => {
-            navigate(`/experiment/${metadataId}`);
-          }, 1200);
+      "Content-Type:",
 
-    } else {
-      setMessage("Upload failed: " + data.error);
+      res.headers.get("content-type")
+
+    );
+
+
+    let data = {};
+
+    try {
+
+      data = await res.json();
+
     }
 
-  } catch (err) {
-    console.error(err);
-    setMessage("Server error.");
+    catch {
+
+      const text = await res.text();
+
+      console.log("Raw response:", text);
+
+      setMessage(
+
+        "Server returned an invalid response."
+
+      );
+
+      return;
+
+    }
+
+
+    if (res.ok) {
+
+      setMessage("Upload successful!");
+
+
+      setTimeout(() => {
+
+        navigate(
+
+          `/experiment/${metadataId}`
+
+        );
+
+      }, 1200);
+
+    }
+
+    else {
+
+      setMessage(
+
+        data.error ||
+
+        "Upload failed."
+
+      );
+
+    }
+
   }
+
+  catch (err) {
+
+    console.error(err);
+
+    setMessage(
+
+      "Server error."
+
+    );
+
+  }
+
 };
   return (
     <div className="min-h-screen bg-gradient-to-b from-orange-50 via-amber-50 to-rose-50 text-gray-800 pt-28 px-6 flex flex-col items-center">
