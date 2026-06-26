@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { config } from "../config";
 import { useNavigate, useParams } from "react-router-dom";
 
 
@@ -42,7 +41,7 @@ const ExperimentDataUpload = () => {
   });
 
   try {
-    const res = await fetch(`${config.BASE_URL}experiment/upload/`, {
+    const res = await fetch("/experiment/upload/", {
       method: "POST",
       credentials: "include",
       body: formData,
