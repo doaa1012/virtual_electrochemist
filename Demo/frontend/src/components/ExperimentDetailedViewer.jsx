@@ -225,7 +225,7 @@ const ExperimentDetailedViewer = () => {
       const formData = new FormData();
       formData.append("audio", blob, "recording.webm");
 
-      const res = await fetch(`/files/${fileId}/save-audio/`, {
+      const res = await fetch(`/api/files/${fileId}/save-audio/`, {
   method: "POST",
   credentials: "include",
   body: formData,
@@ -272,7 +272,7 @@ const ExperimentDetailedViewer = () => {
 
   // 1) Load list of all metadata IDs
   const loadAllMetadataIds = useCallback(async () => {
-    const res = await fetch("/experiment/list/", {
+    const res = await fetch("/api/experiment/list/", {
     credentials: "include",
 });
     const data = await res.json();
@@ -344,7 +344,7 @@ setLoading(true);
   try {
     console.log("Loading experiment:", currentMetadataId);
 
-    const res = await fetch(`/experiment/${currentMetadataId}/details/`, {
+    const res = await fetch(`/api/experiment/${currentMetadataId}/details/`, {
   credentials: "include",
 });
 
@@ -386,7 +386,7 @@ setLoading(true);
     console.log("Loading plot for:", fileUrl);
 
     const res = await fetch(
-  `/experiment/plot/?file_url=${encodeURIComponent(fileUrl)}&file_id=${ecFiles[currentFileIndex].id}`,
+  `/api/experiment/plot/?file_url=${encodeURIComponent(fileUrl)}&file_id=${ecFiles[currentFileIndex].id}`,
   {
     credentials: "include",
   }
