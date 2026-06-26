@@ -46,7 +46,7 @@ urlpatterns = [
     # -------------------------------
     # Experiment Files Upload
     # -------------------------------
-    path("experiment/upload/", upload_experiment_files, name="upload_experiment_files"),
+    path("api/experiment/upload/", upload_experiment_files, name="upload_experiment_files"),
     path("experiment/plot/", experiment_plot),
     path("files/<int:file_id>/save-audio/", save_file_audio),
 
