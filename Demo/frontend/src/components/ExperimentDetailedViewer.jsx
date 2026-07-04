@@ -104,7 +104,9 @@ const ExperimentDetailedViewer = () => {
   const startSpeechToText = () => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
-
+      console.log("SpeechRecognition:", window.SpeechRecognition);
+      console.log("webkitSpeechRecognition:", window.webkitSpeechRecognition);
+      console.log("Chosen:", SpeechRecognition);
     if (!SpeechRecognition) {
       toast.error("Live transcription is not supported in this browser. Use Chrome/Edge.");
       return false;
@@ -118,6 +120,7 @@ const ExperimentDetailedViewer = () => {
     rec.lang = "en-US"; // change if needed, e.g. "de-DE"
 
     rec.onresult = (event) => {
+      console.log(event.results);
       let finalText = "";
       let interimText = "";
 
@@ -137,6 +140,7 @@ const ExperimentDetailedViewer = () => {
     };
 
     rec.onend = () => {
+      console.log("Speech recognition ended");
       // When recording stops, recognition may end too
       setInterimTranscript("");
     };
@@ -145,7 +149,11 @@ const ExperimentDetailedViewer = () => {
     setTranscript("");
     setInterimTranscript("");
 
-    rec.start();
+    rec.onstart = () => {
+
+    console.log("Speech recognition started");
+
+};
     return true;
   };
 
@@ -174,11 +182,11 @@ const ExperimentDetailedViewer = () => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
-      mediaRecorder.onstart = () => {
+    mediaRecorder.onstart = () => {
         setIsRecording(true);
         setAudioBlob(null);
         setAudioURL(null);
-      };
+        toast.success("Recording started.");};
 
       mediaRecorder.onstop = () => {
         // stop mic
@@ -838,39 +846,54 @@ Add Experiment Metadata
               </div>
               <div className="flex justify-center my-6">
 
-  <button
-    onClick={() => {
-      setShowRecorder(true);
+<button
+  onClick={() => {
+    setShowRecorder(true);
 
-      if (isRecording) {
-        stopRecording();
-      } else {
-        startRecording();
-      }
-    }}
-    className="
-      flex items-center justify-center gap-5
-      px-10 py-5
-      rounded-full
-      border-[5px] border-red-500
-      bg-white
-      shadow-xl
-      hover:scale-105
-      transition
-    "
-  >
-    <span className="text-5xl font-extrabold text-black">
-      REC
-    </span>
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }}
+  className={`flex items-center justify-center gap-5
+    px-10 py-5 rounded-full border-[5px]
+    shadow-xl transition
+    ${
+      isRecording
+        ? "border-red-700 bg-red-50 animate-pulse"
+        : "border-red-500 bg-white hover:scale-105"
+    }`}
+>
 
-    <span
-      className={`w-8 h-8 rounded-full ${
-        isRecording
-          ? "bg-red-600 animate-pulse"
-          : "bg-red-500"
-      }`}
-    />
-  </button>
+  <span className="text-4xl font-extrabold">
+    {isRecording ? "STOP" : "REC"}
+  </span>
+
+  <span
+    className={`w-8 h-8 rounded-full ${
+      isRecording
+        ? "bg-red-700 animate-ping"
+        : "bg-red-500"
+    }`}
+  />
+
+</button>
+{isRecording && (
+
+<div className="mt-4 text-center">
+
+<p className="text-red-700 font-bold text-lg animate-pulse">
+🔴 Recording...
+</p>
+
+<p className="text-gray-600">
+Speak now. Your voice is being recorded and transcribed.
+</p>
+
+</div>
+
+)}
 
 </div>
               <br />
