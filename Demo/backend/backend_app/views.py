@@ -249,13 +249,14 @@ def extract_metadata_excel(request):
 
     extracted = parse_metadata_excel(excel_file)
     return Response(extracted, status=200)
-
 @csrf_exempt
 @api_view(["POST"])
 def create_metadata(request):
+
     data = request.data.copy()
+
     # -------------------------------------------------------
-    # 1. Clean numeric fields (strip units safely)
+    # 1. Clean numeric fields
     # -------------------------------------------------------
     def to_float(value):
         if value is None:
@@ -263,7 +264,7 @@ def create_metadata(request):
         try:
             return float(str(value).replace(",", ".").split()[0])
         except:
-            return None   # silently ignore invalid values
+            return None
 
     def to_int(value):
         try:
@@ -284,15 +285,17 @@ def create_metadata(request):
         if field in data:
             data[field] = converter(data[field])
 
-    ######################################################
-    # Identify uploader
-    ######################################################
+    # -------------------------------------------------------
+    # 2. Identify uploader
+    # -------------------------------------------------------
     virtual_user = None
+
     participant_id = data.get("participant_id")
     recovery_key = data.get("recovery_key")
-    ###########################################
-    # 1) Participant credentials
-    ###########################################
+
+    # ----------------------------------------
+    # A. Restore using participant credentials
+    # ----------------------------------------
     if participant_id and recovery_key:
 
         virtual_user = VirtualUser.objects.filter(
@@ -303,10 +306,9 @@ def create_metadata(request):
 
         ).first()
 
-
-    ###########################################
-    # 2) Existing session cookie
-    ###########################################
+    # ----------------------------------------
+    # B. Existing browser session
+    # ----------------------------------------
     if not virtual_user:
 
         session_id = request.COOKIES.get("session_id")
@@ -320,9 +322,9 @@ def create_metadata(request):
 
             ).first()
 
-    ###########################################
-    # 3) Completely new visitor
-    ###########################################
+    # ----------------------------------------
+    # C. Create completely new visitor
+    # ----------------------------------------
     if not virtual_user:
 
         session_id = request.COOKIES.get("session_id")
@@ -332,39 +334,82 @@ def create_metadata(request):
             cookie_session=session_id
 
         )
-    ###########################################
-    # 3) django user
-    ###########################################
-    django_user = request.user if request.user.is_authenticated else None
 
     # -------------------------------------------------------
-    # 3. Whitelist only model fields (avoid unwanted keys)
+    # 3. Determine created_by
     # -------------------------------------------------------
-    allowed_fields = {f.name for f in ExperimentMetadata._meta.get_fields()}
-    filtered_data = {k: v for k, v in data.items() if k in allowed_fields}
+    created_by = None
+
+    if virtual_user:
+
+        created_by = virtual_user.participant_id
+
+    elif request.user.is_authenticated:
+
+        created_by = request.user.get_username()
+
+    else:
+
+        created_by = "anonymous"
 
     # -------------------------------------------------------
-    # 4. Create metadata
+    # 4. Keep only ExperimentMetadata fields
+    # -------------------------------------------------------
+    allowed_fields = {
+
+        f.name
+
+        for f in ExperimentMetadata._meta.get_fields()
+
+        if hasattr(f, "attname")
+
+    }
+
+    filtered_data = {
+
+        key: value
+
+        for key, value in data.items()
+
+        if key in allowed_fields
+
+    }
+
+    # participant_id and recovery_key are NOT model fields
+    filtered_data.pop("participant_id", None)
+    filtered_data.pop("recovery_key", None)
+
+    # -------------------------------------------------------
+    # 5. Create metadata
     # -------------------------------------------------------
     metadata = ExperimentMetadata.objects.create(
-        created_by=django_user,
+
+        created_by=created_by,
+
         virtual_user=virtual_user,
+
         **filtered_data
+
     )
 
     # -------------------------------------------------------
-    # 5. Return success response
+    # 6. Return response
     # -------------------------------------------------------
     return Response({
+
         "status": "success",
+
         "id": metadata.id,
-        "uploaded_by": (
-            django_user.username
-            if django_user
-            else (virtual_user.email if virtual_user else "anonymous")
+
+        "participant_id": (
+            virtual_user.participant_id
+            if virtual_user
+            else None
         ),
+
+        "uploaded_by": created_by
+
     })
-    
 @api_view(["POST"])
 def upload_experiment_files(request):
 
