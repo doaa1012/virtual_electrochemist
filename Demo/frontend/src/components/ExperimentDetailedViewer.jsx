@@ -830,27 +830,7 @@ Add Experiment Metadata
 
           {ecFiles.length > 0 ? (
             <>
-              {/* ---- FILE NAVIGATION ---- */}
-              <div className="flex justify-between items-center mb-6">
-                <button
-                  onClick={prevFile}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition"
-                >
-                  ← Previous File
-                </button>
-
-                <div className="text-center">
-                  <p className="text-gray-600 text-sm">
-                    {currentFileIndex + 1} / {ecFiles.length}
-                  </p>
-                </div>
-                <button
-                  onClick={nextFile}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition"
-                >
-                  Next File →
-                </button>
-              </div>
+              
 
               {/* ---- PLOT ---- */}
               <div className="bg-[#FFF8F1] border border-orange-200 rounded-xl p-4 shadow-inner">
