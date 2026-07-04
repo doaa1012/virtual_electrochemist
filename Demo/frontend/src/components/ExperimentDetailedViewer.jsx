@@ -822,20 +822,12 @@ Add Experiment Metadata
         </div>
 
         {/* ---- ELECTROCHEM PLOT CARD ---- */}
-        <div Plotdiv className="bg-white p-8 rounded-2xl shadow-lg border border-orange-200">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-orange-700">
-              Electrochemistry Plot
-            </h2>
+        <div className="bg-white p-8 rounded-2xl shadow-lg border border-orange-200">
+        <h2 className="text-2xl font-bold text-orange-700 mb-4">
+          Electrochemistry Plot
+        </h2>
+          
 
-            {/* RECORD LINK */}
-            <button
-              onClick={() => setShowRecorder(!showRecorder)}
-              className="text-blue-600 text-lg hover:underline hover:text-blue-800"
-            >
-              🎤 Record
-            </button>
-          </div>
           {ecFiles.length > 0 ? (
             <>
               {/* ---- FILE NAVIGATION ---- */}
@@ -864,18 +856,49 @@ Add Experiment Metadata
               <div className="bg-[#FFF8F1] border border-orange-200 rounded-xl p-4 shadow-inner">
                 {renderSvgPlot()}
               </div>
+              <div className="flex justify-center my-6">
+
+  <button
+    onClick={() => {
+      setShowRecorder(true);
+
+      if (isRecording) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    }}
+    className="
+      flex items-center justify-center gap-5
+      px-10 py-5
+      rounded-full
+      border-[5px] border-red-500
+      bg-white
+      shadow-xl
+      hover:scale-105
+      transition
+    "
+  >
+    <span className="text-5xl font-extrabold text-black">
+      REC
+    </span>
+
+    <span
+      className={`w-8 h-8 rounded-full ${
+        isRecording
+          ? "bg-red-600 animate-pulse"
+          : "bg-red-500"
+      }`}
+    />
+  </button>
+
+</div>
               <br />
               {/* ---- RECORD PANEL BELOW TITLE ---- */}
-              {showRecorder && (
+              {(showRecorder || audioURL) && (
                 <div className="mb-4 p-4 bg-white border border-orange-200 rounded-xl shadow-sm">
 
-                  <button
-                    onClick={isRecording ? stopRecording : startRecording}
-                    className={`px-6 py-2 rounded-lg font-semibold text-white shadow 
-        ${isRecording ? "bg-red-600" : "bg-blue-600 hover:bg-blue-700"}`}
-                  >
-                    {isRecording ? "⏹ Stop Recording" : "🎤 Start Recording"}
-                  </button>
+       
 
                   {/*  TRANSCRIPT BOX ALWAYS VISIBLE */}
                   <div className="mt-4 p-3 rounded-lg border border-orange-200 bg-[#FFF8F1]">
