@@ -6,21 +6,17 @@ const ExperimentDataUpload = () => {
   const { metadataId } = useParams();
   const navigate = useNavigate();
 
-  const [files, setFiles] = useState([]);
+  const [file, setFile] = useState(null);
   const [message, setMessage] = useState("");
   const handleFileChange = (e) => {
-  const selected = [...e.target.files];
-  
-    //  Prevent multiple ZIP files
-    const zipCount = selected.filter(f => f.name.toLowerCase().endsWith(".zip")).length;
 
-    if (zipCount > 1) {
-      setMessage("Only one ZIP file is allowed.");
-      return;
-    }
+    const selected = e.target.files[0];
 
-    setFiles(selected);
-  };
+    if (!selected) return;
+
+    setFile(selected);
+
+};
 const handleUpload = async () => {
 
   if (!metadataId) {
@@ -30,12 +26,13 @@ const handleUpload = async () => {
     return;
   }
 
-  if (files.length === 0) {
-    setMessage(
-      "Please select files."
-    );
+if (!file) {
+
+    setMessage("Please select a file.");
+
     return;
-  }
+
+}
 
   const formData = new FormData();
 
@@ -44,13 +41,7 @@ const handleUpload = async () => {
     metadataId
   );
 
-  files.forEach((file) => {
-    formData.append(
-      "files",
-      file
-    );
-  });
-
+formData.append("files", file);
   try {
 const res = await fetch("/api/experiment/upload/", {
   method: "POST",
@@ -153,16 +144,15 @@ const res = await fetch("/api/experiment/upload/", {
         </h2>
 
         <p className="text-gray-600 text-center mb-6">
-          Upload ONE zip or individual data files (.txt, .dat, .csv, .xlsx).
+          Each experiment consists of one metadata record and one data file.
         </p>
 
-        <input
-          type="file"
-          accept=".zip,.dat,.txt,.csv,.xlsx"
-          multiple
-          onChange={handleFileChange}
-          className="w-full p-3 border border-gray-300 rounded-lg mb-4 bg-white"
-        />
+<input
+    type="file"
+    accept=".dat,.txt,.csv,.xlsx"
+    onChange={handleFileChange}
+    className="w-full p-3 border border-gray-300 rounded-lg mb-4 bg-white"
+/>
 
         <button
           onClick={handleUpload}
