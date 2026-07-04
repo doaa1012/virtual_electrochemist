@@ -25,7 +25,13 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 import subprocess, os
 from django.conf import settings
-from .models import ExperimentMetadata, ExperimentFolder, ExperimentFile, ExperimentDescription,ConsentRecord
+from .models import (
+    ExperimentMetadata,
+    ExperimentFile,
+    ExperimentDescription,
+    ConsentRecord,
+    VirtualUser,
+)
 from django.forms.models import model_to_dict
 import json
 import numpy as np
@@ -358,98 +364,58 @@ def create_metadata(request):
             else (virtual_user.email if virtual_user else "anonymous")
         ),
     })
-
+    
 @api_view(["POST"])
 def upload_experiment_files(request):
-    """
-    Accepts:
-      • One ZIP file (max 1 ZIP)
-      • Multiple non-ZIP files
-    ZIP → extracted into separate ExperimentFile records
-    Non-ZIP → saved directly
-    """
+
     metadata_id = request.POST.get("metadata_id")
-    files = request.FILES.getlist("files")
+    uploaded_file = request.FILES.get("files")
 
     if not metadata_id:
-        return Response({"error": "metadata_id is required"}, status=400)
-    if not files:
-        return Response({"error": "No files uploaded"}, status=400)
+        return Response(
+            {"error": "metadata_id is required"},
+            status=400
+        )
+
+    if not uploaded_file:
+        return Response(
+            {"error": "No file uploaded"},
+            status=400
+        )
 
     try:
         metadata = ExperimentMetadata.objects.get(id=metadata_id)
-    except ExperimentMetadata.DoesNotExist:
-        return Response({"error": "Metadata object not found"}, status=404)
 
-    folder, _ = ExperimentFolder.objects.get_or_create(
+    except ExperimentMetadata.DoesNotExist:
+
+        return Response(
+            {"error": "Metadata object not found"},
+            status=404
+        )
+
+    # Replace old file if one already exists
+    ExperimentFile.objects.filter(metadata=metadata).delete()
+
+    experiment_file = ExperimentFile.objects.create(
         metadata=metadata,
-        defaults={"folder_name": f"experiment_{metadata_id}"}
+        file=uploaded_file,
+        file_type=uploaded_file.name.split(".")[-1].lower()
     )
 
-    #  1 ZIP allowed
-    zip_files = [f for f in files if f.name.lower().endswith(".zip")]
-    if len(zip_files) > 1:
-        return Response({"error": "Only one ZIP file is allowed"}, status=400)
-
-    saved_files = []
-
-    for uploaded_file in files:
-
-        # ---------------- ZIP HANDLING ----------------
-        if uploaded_file.name.lower().endswith(".zip"):
-
-            try:
-                with zipfile.ZipFile(uploaded_file) as z:
-                    for fname in z.namelist():
-                        if fname.endswith("/"):
-                            continue
-
-                        file_data = z.read(fname)
-                        ext = fname.split(".")[-1].lower()
-
-                        ef = ExperimentFile(folder=folder, file_type=ext)
-                        ef.file.save(fname, ContentFile(file_data), save=True)
-                        saved_files.append(fname)
-
-            except Exception as e:
-                return Response(
-                    {"error": f"ZIP extraction failed: {str(e)}"},
-                    status=500
-                )
-
-            continue
-
-        # --------------- SINGLE FILE ----------------
-        ext = uploaded_file.name.split(".")[-1].lower()
-        ef = ExperimentFile(folder=folder, file_type=ext)
-        ef.file.save(uploaded_file.name, uploaded_file, save=True)
-        saved_files.append(uploaded_file.name)
-
     return Response({
+
         "status": "success",
-        "metadata_id": metadata_id,
-        "folder": folder.folder_name,
-        "files_saved": saved_files,
+
+        "metadata_id": metadata.id,
+
+        "file_id": experiment_file.id,
+
+        "filename": experiment_file.file.name.split("/")[-1],
+
+        "file_url": experiment_file.file.url
+
     })
-
-
-def experiment_details(request, metadata_id):
-    metadata = ExperimentMetadata.objects.get(id=metadata_id)
-    folder = metadata.folder
-    files = folder.files.all()
-
-    return JsonResponse({
-        "metadata": model_to_dict(metadata),
-        "files": [
-            {
-                "id": f.id,
-                "filename": f.file.name.split("/")[-1],
-                "url": f.file.url
-            }
-            for f in files
-        ]
-    })
-
+    
 
 def experiment_list(request):
     items = ExperimentMetadata.objects.all().order_by("id")
@@ -486,7 +452,7 @@ def experiment_plot(request):
     # ---------------------------------------------------------
     try:
         file_obj = ExperimentFile.objects.get(id=file_id)
-        metadata = file_obj.folder.metadata
+        metadata = file_obj.metadata
         area = metadata.electrode_area or 1.0
 
         print("=== DEBUG: METADATA FOUND ===")
@@ -576,19 +542,22 @@ def save_file_audio(request, file_id):
         if not audio_file:
             return HttpResponseBadRequest("No audio file provided")
 
-        from .models import ExperimentFile, ExperimentDescription
-
         file_obj = ExperimentFile.objects.get(id=file_id)
-
+        session_id = request.COOKIES.get("session_id")
+        
+        virtual_user = VirtualUser.objects.filter(
+            cookie_session=session_id
+        ).first()
+        
         desc = ExperimentDescription.objects.create(
-            file=file_obj,
+            experiment_file=file_obj,
+            virtual_user=virtual_user,
             audio=audio_file
         )
-
         return JsonResponse({
             "status": "success",
             "description_id": desc.id,
-            "created": desc.field_created.isoformat(),
+            "created": desc.created_at.isoformat(),
             "audio_url": desc.audio.url
         })
 
@@ -757,7 +726,72 @@ def save_consent(request):
 
         )
     
+def experiment_details(request, metadata_id):
 
+    try:
+        metadata = ExperimentMetadata.objects.get(id=metadata_id)
+
+    except ExperimentMetadata.DoesNotExist:
+
+        return JsonResponse(
+            {"error": "Metadata not found"},
+            status=404
+        )
+
+    try:
+        experiment_file = metadata.file
+
+    except ExperimentFile.DoesNotExist:
+
+        experiment_file = None
+
+    return JsonResponse({
+
+        "metadata": model_to_dict(metadata),
+
+        "file": None if experiment_file is None else {
+
+            "id": experiment_file.id,
+
+            "filename": experiment_file.file.name.split("/")[-1],
+
+            "url": experiment_file.file.url,
+
+            "file_type": experiment_file.file_type,
+
+        },
+
+        "descriptions": [] if experiment_file is None else [
+
+            {
+
+                "id": description.id,
+
+                "audio": (
+                    description.audio.url
+                    if description.audio
+                    else None
+                ),
+
+                "transcription": description.transcription,
+
+                "language": description.language,
+
+                "virtual_user": (
+                    description.virtual_user.participant_id
+                    if description.virtual_user
+                    else None
+                ),
+
+                "created_at": description.created_at.isoformat(),
+
+            }
+
+            for description in experiment_file.descriptions.all()
+
+        ]
+
+    })
 @api_view(["POST"])
 def restore_session(request):
 
