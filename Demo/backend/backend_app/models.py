@@ -5,7 +5,6 @@ import secrets
 def generate_pid():
     return f"VE-{secrets.token_hex(4).upper()}"
 
-
 def generate_key():
     return secrets.token_urlsafe(32)
 # ---------------------------------------------------------
@@ -198,59 +197,29 @@ class ExperimentMetadata(models.Model):
 
         super().save(*args, **kwargs)
 # ---------------------------------------------------------
-# 3. Experiment Folder (each metadata has a data folder)
+# 3. Experiment file (each metadata has a file)
 # ---------------------------------------------------------
-class ExperimentFolder(models.Model):
+class ExperimentFile(models.Model):
 
     metadata = models.OneToOneField(
         ExperimentMetadata,
         on_delete=models.CASCADE,
-        related_name="folder"
+        related_name="file"
     )
 
-    folder_name = models.CharField(
-        max_length=255,
+    file = models.FileField(
+        upload_to="experiment_data/"
+    )
+
+    file_type = models.CharField(
+        max_length=100,
         blank=True,
         null=True
     )
 
-    field_created=models.DateTimeField(
+    field_created = models.DateTimeField(
         default=timezone.now
     )
-
-
-    is_deleted=models.BooleanField(
-        default=False
-    )
-
-    deleted_at=models.DateTimeField(
-        blank=True,
-        null=True
-    )
-
-
-    class Meta:
-        db_table="ExperimentFolder"
-
-
-    def __str__(self):
-        return f"Folder for Metadata {self.metadata.id}"
-
-
-# ---------------------------------------------------------
-# 4. Files inside the folder
-# ---------------------------------------------------------
-class ExperimentFile(models.Model):
-    folder = models.ForeignKey(
-        ExperimentFolder,
-        on_delete=models.CASCADE,
-        related_name="files"
-    )
-
-    file = models.FileField(upload_to="experiment_data/")
-    file_type = models.CharField(max_length=100, blank=True, null=True)
-
-    field_created = models.DateTimeField(default=timezone.now)
 
     class Meta:
         db_table = "ExperimentFile"
@@ -262,42 +231,72 @@ class ExperimentFile(models.Model):
 # ---------------------------------------------------------
 # 5. Description records (no user tracking)
 # ---------------------------------------------------------
+# ---------------------------------------------------------
+# Experiment Descriptions
+# One experiment file can have many descriptions
+# ---------------------------------------------------------
 class ExperimentDescription(models.Model):
-    file = models.ForeignKey(
+
+    experiment_file = models.ForeignKey(
         ExperimentFile,
         on_delete=models.CASCADE,
-        related_name="descriptions",
-        null=True,
-        blank=True
+        related_name="descriptions"
     )
 
-    # AUDIO ONLY
-    audio=models.FileField(
+    virtual_user = models.ForeignKey(
+        VirtualUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="descriptions"
+    )
+
+    # Recorded audio
+    audio = models.FileField(
         upload_to="experiment_audio/",
         blank=True,
         null=True
     )
 
-    transcription=models.TextField(
-
-            blank=True,
-
-            null=True
+    # Whisper transcription
+    transcription = models.TextField(
+        blank=True,
+        default=""
     )
 
-    audio_deleted=models.BooleanField(
+    # Optional language detected by Whisper
+    language = models.CharField(
+        max_length=30,
+        blank=True,
+        default=""
+    )
 
-            default=False)
-    audio_deleted_at=models.DateTimeField(
+    # Soft delete of the audio
+    audio_deleted = models.BooleanField(
+        default=False
+    )
 
-            blank=True,
+    audio_deleted_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
 
-            null=True)
-    # keep timestamp
-    field_created = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(
+        default=timezone.now
+    )
 
     class Meta:
         db_table = "ExperimentDescription"
+        ordering = ["created_at"]
 
     def __str__(self):
-        return f"Audio description {self.id}"
+        participant = (
+            self.virtual_user.participant_id
+            if self.virtual_user
+            else "Anonymous"
+        )
+    
+        return (
+            f"Description {self.id} "
+            f"by {participant}"
+        )
