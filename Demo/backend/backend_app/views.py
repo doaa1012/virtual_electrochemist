@@ -461,13 +461,64 @@ def upload_experiment_files(request):
 
     })
     
+from django.forms.models import model_to_dict
 
 def experiment_list(request):
-    items = ExperimentMetadata.objects.all().order_by("id")
-    return JsonResponse({
-        "ids": [m.id for m in items]
-    })
 
+    experiments = []
+
+    metadata_list = (
+        ExperimentMetadata.objects
+        .select_related("virtual_user")
+        .prefetch_related(
+            "file__descriptions__virtual_user"
+        )
+        .order_by("id")
+    )
+
+    for metadata in metadata_list:
+
+        try:
+            experiment_file = metadata.file
+        except ExperimentFile.DoesNotExist:
+            experiment_file = None
+
+        experiments.append({
+
+            "metadata": model_to_dict(metadata),
+
+            "file": None if experiment_file is None else {
+
+                "id": experiment_file.id,
+                "filename": experiment_file.file.name.split("/")[-1],
+                "url": experiment_file.file.url,
+                "file_type": experiment_file.file_type,
+
+            },
+
+            "descriptions": [] if experiment_file is None else [
+
+                {
+                    "id": d.id,
+                    "audio": d.audio.url if d.audio else None,
+                    "transcription": d.transcription,
+                    "language": d.language,
+                    "created_at": d.created_at.isoformat(),
+                    "virtual_user": (
+                        d.virtual_user.participant_id
+                        if d.virtual_user else None
+                    ),
+                }
+
+                for d in experiment_file.descriptions.all()
+
+            ]
+
+        })
+
+    return JsonResponse({
+        "experiments": experiments
+    })
 
 def is_float(x):
     try:
