@@ -1,28 +1,24 @@
 import React, { useEffect, useState, useCallback } from "react";
-
 import { toast } from "react-toastify";
-import { useParams, useNavigate } from "react-router-dom";
-
+import { useNavigate } from "react-router-dom";
 const ExperimentDetailedViewer = () => {
-  const [allMetadataIds, setAllMetadataIds] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [metadata, setMetadata] = useState(null);
-  const [files, setFiles] = useState([]);
-  const [ecFiles, setEcFiles] = useState([]);
-  const [currentFileIndex, setCurrentFileIndex] = useState(0);
-  const [showRecorder, setShowRecorder] = useState(false);
-  const mediaRecorderRef = React.useRef(null);
-  const [audioBlob, setAudioBlob] = useState(null);
-  const [audioURL, setAudioURL] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const [interimTranscript, setInterimTranscript] = useState("");
-  const speechRecRef = React.useRef(null);
-  const { id: routeId } = useParams();
-  const navigate = useNavigate();
-  const [loading,setLoading] = useState(true);
-  const id = routeId ? Number(routeId) : null;
-  const singleMode = !!id;
+const [experiments, setExperiments] = useState([]);
+const [currentIndex, setCurrentIndex] = useState(0);
+const currentExperiment = experiments[currentIndex] || null;
+const metadata = currentExperiment?.metadata || null;
+const file = currentExperiment?.file || null;
+const descriptions = currentExperiment?.descriptions || [];
+const [showRecorder, setShowRecorder] = useState(false);
+const mediaRecorderRef = React.useRef(null);
+const [audioBlob, setAudioBlob] = useState(null);
+const [audioURL, setAudioURL] = useState(null);
+const [isSaving, setIsSaving] = useState(false);
+const [transcript, setTranscript] = useState("");
+const [interimTranscript, setInterimTranscript] = useState("");
+const speechRecRef = React.useRef(null);
+const navigate = useNavigate();
+const [loading,setLoading] = useState(true);
+
   const stopRecorderAndWait = () =>
     new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
@@ -224,7 +220,7 @@ const ExperimentDetailedViewer = () => {
     setIsSaving(true);
 
     try {
-      const fileId = ecFiles[currentFileIndex]?.id;
+      const fileId = file?.id;
       if (!fileId) {
         toast.error("No file selected.");
         return false;
@@ -273,22 +269,48 @@ const ExperimentDetailedViewer = () => {
   };
   const [plotData, setPlotData] = useState(null);
 
-  const currentMetadataId =
-    id ?? allMetadataIds[currentIndex];
   // ---- Voice Recording Logic ----
   const [isRecording, setIsRecording] = useState(false);
 
   // 1) Load list of all metadata IDs
-  const loadAllMetadataIds = useCallback(async () => {
-    const res = await fetch("/api/experiment/list/", {
-    credentials: "include",
-});
-    const data = await res.json();
-    console.log("Experiment list loaded:", data.ids);
+const loadExperiments = useCallback(async () => {
+    try {
+        setLoading(true);
 
-    setAllMetadataIds(data.ids);
-    setCurrentIndex(0);
-  }, []);
+        const res = await fetch("/api/experiment/list/", {
+            credentials: "include",
+        });
+
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        const experiments = data.experiments || [];
+
+        setExperiments(experiments);
+
+        // Always start from the first experiment
+        setCurrentIndex(0);
+
+        // Optional: clear any previous plot if there are no experiments
+        if (experiments.length === 0) {
+            setPlotData(null);
+        }
+
+    } catch (err) {
+        console.error("Failed to load experiments:", err);
+
+        setExperiments([]);
+        setCurrentIndex(0);
+        setPlotData(null);
+
+        toast.error("Unable to load experiments.");
+    } finally {
+        setLoading(false);
+    }
+}, []);
 
   const renderValue = (key, value) => {
   if (!value) return "";
@@ -333,191 +355,77 @@ const ExperimentDetailedViewer = () => {
   return value;
 };
 
-  // 2) Load data for a single metadata ID
-const loadMetadata = useCallback(async () => {
+ 
 
-if (!currentMetadataId) {
-
-    setMetadata(null);
-    setFiles([]);
-    setEcFiles([]);
-
-    setLoading(false); // <-- important
-
-    return;
-}
-
-setLoading(true);
-
-  try {
-    console.log("Loading experiment:", currentMetadataId);
-
-const res = await fetch(
-    `/api/experiment/${currentMetadataId}/details/`,
-    {
-        credentials:"include"
-    }
-);
-
-
-console.log(res.status);
-
-console.log(
-    res.headers.get("content-type")
-);
-
-
-const text = await res.text();
-
-console.log(text);
-    if (!res.ok) {
-      throw new Error("Experiment not found.");
-    }
-
-   let data={};
-
-try{
-
-    data = JSON.parse(text);
-
-}
-catch{
-
-    console.log(
-        "NOT JSON"
-    );
-
-    return;
-}
-
-    setMetadata(data.metadata || null);
-    setFiles(data.files || []);
-
-    const electrochemFiles = (data.files || []).filter(
-      (f) =>
-        f.filename.toLowerCase().includes("cv") ||
-        f.filename.toLowerCase().includes("lsv")
-    );
-
-    setEcFiles(electrochemFiles);
-    setCurrentFileIndex(0);
-  } catch (err) {
-    console.error(err);
-    toast.error("Unable to load experiment details.");
-    setMetadata(null);
-    setFiles([]);
-    setEcFiles([]);
-  } finally {
-    setLoading(false);
-  }
-}, [currentMetadataId]);
-  // 3) Load plot for selected file (still uses your Django endpoint)
+// 3) Load plot for selected file (still uses your Django endpoint)
   const loadPlot = useCallback(async () => {
-    if (!ecFiles[currentFileIndex]) {
-      setPlotData(null);
-      return;
+if (!file) {
+    setPlotData(null);
+    return;}
+const res = await fetch(
+    `/api/experiment/plot/?file_url=${encodeURIComponent(file.url)}&file_id=${file.id}`,
+    {
+        credentials: "include",
     }
-
-    const fileUrl = ecFiles[currentFileIndex].url;
-    console.log("Loading plot for:", fileUrl);
-
-    const res = await fetch(
-  `/api/experiment/plot/?file_url=${encodeURIComponent(fileUrl)}&file_id=${ecFiles[currentFileIndex].id}`,
-  {
-    credentials: "include",
-  }
 );
 
+if (!res.ok) {
+    setPlotData(null);
+    return;
+}
 
-    const data = await res.json();
-    console.log("plotData received:", data);
+const data = await res.json();
 
-    if (!data || !Array.isArray(data.x) || !Array.isArray(data.y)) {
-      console.error(" Invalid plot data returned:", data);
-      setPlotData(null);
-      return;
-    }
+if (!Array.isArray(data.x)) {
+    setPlotData(null);
+    return;
+}
 
-    setPlotData({
-      x: data.x,
-      y: data.y,
-      xlabel: data.xlabel ?? "",
-      ylabel: data.ylabel ?? "",
-    });
-  }, [ecFiles, currentFileIndex]);
-
+setPlotData({
+    x: data.x,
+    y: data.y,
+    xlabel: data.xlabel ?? "",
+    ylabel: data.ylabel ?? "",
+});
+}, [file]);
   // 4) Effects
   useEffect(() => {
 
-    const init = async () => {
+    loadExperiments();
 
-      // -------- SINGLE EXPERIMENT MODE --------
-      if (id) {
-        console.log("Single experiment mode:", id);
+}, [loadExperiments]);
+    
 
-        setAllMetadataIds([id]);
-        setCurrentIndex(0);
-        return;
-      }
-
-      // -------- BROWSE ALL MODE --------
-      await loadAllMetadataIds();
-    };
-
-    init();
-
-  }, [id, loadAllMetadataIds]);
-
-  useEffect(() => {
-    loadMetadata();
-  }, [currentMetadataId, loadMetadata]);
 
   useEffect(() => {
     loadPlot();
-  }, [currentFileIndex, ecFiles, loadPlot]);
+}, [file, loadPlot]);
 
   // 5) Metadata navigation
-  const goNextMetadata = async () => {
-    if (isSaving) return toast.info("Saving audio, please wait...");
-    const ok = await autoSaveIfNeeded();
+const goNextMetadata = async () => {
 
-    if (ok) {
-      toast.success("Recording autosaved!");
-      await new Promise(r => setTimeout(r, 700));
-    }
+    if (isSaving) return;
 
-    setCurrentIndex((prev) => (prev + 1) % allMetadataIds.length);
-  };
+    await autoSaveIfNeeded();
+
+    setCurrentIndex(i =>
+        Math.min(i + 1, experiments.length - 1)
+    );
+
+};
   
-  const goPrevMetadata = async () => {
-    if (isSaving) return toast.info("Saving audio, please wait...");
-    const ok = await autoSaveIfNeeded();
+const goPrevMetadata = async () => {
 
-    if (ok) {
-      toast.success("Recording autosaved!");
-      await new Promise(r => setTimeout(r, 700));
-    }
-
-    setCurrentIndex((prev) => (prev - 1 + allMetadataIds.length) % allMetadataIds.length);
-  };
-
-
-  // 6) File navigation
-  const nextFile = async () => {
-    if (isSaving) return toast.info("Saving audio...");
-    if (ecFiles.length === 0) return;
+    if (isSaving) return;
 
     await autoSaveIfNeeded();
-    setCurrentFileIndex((i) => (i + 1) % ecFiles.length);
-  };
 
-  const prevFile = async () => {
-    if (isSaving) return toast.info("Saving audio...");
-    if (ecFiles.length === 0) return;
+    setCurrentIndex(i =>
+        Math.max(i - 1, 0)
+    );
 
-    await autoSaveIfNeeded();
-    setCurrentFileIndex((i) => (i - 1 + ecFiles.length) % ecFiles.length);
-  };
+};
+
 
  if (loading) {
   return (
@@ -739,29 +647,19 @@ Add Experiment Metadata
       <div className="flex items-center justify-between mb-10">
 
   {/* LEFT SIDE */}
-  <div className="flex gap-3">
-
-    {/* Back to ALL experiments (only in single mode) */}
-    {singleMode && (
-      <button
-        onClick={() => navigate("/experiment")}
-        className="px-5 py-2 bg-gray-500 text-white rounded-lg shadow hover:bg-gray-600 transition"
-      >
-        ← All Experiments
-      </button>
-    )}
-
-    {/* Previous button (browse mode only) */}
-    {!singleMode && (
-      <button
-        onClick={goPrevMetadata}
-        className="px-5 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition"
-      >
-        ← Previous
-      </button>
-    )}
-
-  </div>
+<div className="flex gap-3">
+  <button
+    onClick={goPrevMetadata}
+    disabled={currentIndex === 0}
+    className={`px-5 py-2 rounded-lg shadow transition ${
+      currentIndex === 0
+        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+        : "bg-orange-500 text-white hover:bg-orange-600"
+    }`}
+  >
+    ← Previous
+  </button>
+</div>
 
   {/* TITLE */}
   <div className="text-center">
@@ -774,16 +672,19 @@ Add Experiment Metadata
   </div>
 
   {/* RIGHT SIDE */}
-  <div>
-    {!singleMode && (
-      <button
-        onClick={goNextMetadata}
-        className="px-5 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition"
-      >
-        Next →
-      </button>
-    )}
-  </div>
+<div>
+  <button
+    onClick={goNextMetadata}
+    disabled={currentIndex === experiments.length - 1}
+    className={`px-5 py-2 rounded-lg shadow transition ${
+      currentIndex === experiments.length - 1
+        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+        : "bg-orange-500 text-white hover:bg-orange-600"
+    }`}
+  >
+    Next →
+  </button>
+</div>
 
 </div>
 
@@ -836,7 +737,7 @@ Add Experiment Metadata
         </h2>
           
 
-          {ecFiles.length > 0 ? (
+          {file ? (
             <>
               
 
