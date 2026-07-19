@@ -18,7 +18,8 @@ const [interimTranscript, setInterimTranscript] = useState("");
 const speechRecRef = React.useRef(null);
 const navigate = useNavigate();
 const [loading,setLoading] = useState(true);
-
+const [savedAudioUrl, setSavedAudioUrl] = useState(null);
+const [savedDescription, setSavedDescription] = useState(null);
   const stopRecorderAndWait = () =>
     new Promise((resolve) => {
       const recorder = mediaRecorderRef.current;
@@ -268,18 +269,29 @@ const uploadAudio = async (blob) => {
 
             // Replace browser transcript with Whisper transcript
             if (data.transcription) {
-                setTranscript(data.transcription);
-                setInterimTranscript("");
-            }
-
-            toast.success("Recording saved!", { autoClose: 1500 });
-
-            await new Promise((r) => setTimeout(r, 700));
-
-            setAudioBlob(null);
-            setAudioURL(null);
-
-            return true;
+            setTranscript(data.transcription);
+            setInterimTranscript("");
+        }
+        
+        // Save backend information
+        setSavedDescription({
+            id: data.description_id,
+            created: data.created,
+            language: data.language,
+            transcription: data.transcription,
+        });
+        
+        // Backend audio
+        setSavedAudioUrl(`http://127.0.0.1:8000${data.audio_url}`);
+        
+        toast.success("Recording saved!", { autoClose: 1500 });
+        
+        await new Promise((r) => setTimeout(r, 700));
+        
+        setAudioBlob(null);
+        setAudioURL(null);
+        
+        return true;
 
         } else {
             toast.error("Upload failed");
@@ -911,7 +923,42 @@ Speak now. Your voice is being recorded and transcribed.
                   )}
                 </div>
               )}
+{/* Saved recording */}
+{savedDescription && (
+    <div className="mt-6 p-4 rounded-xl border border-green-300 bg-green-50">
 
+        <h3 className="text-lg font-bold text-green-700 mb-3">
+            Saved Recording
+        </h3>
+
+        <p><strong>ID:</strong> {savedDescription.id}</p>
+
+        <p><strong>Language:</strong> {savedDescription.language}</p>
+
+        <p>
+            <strong>Created:</strong>{" "}
+            {new Date(savedDescription.created).toLocaleString()}
+        </p>
+
+        <div className="mt-4">
+            <strong>Transcription</strong>
+
+            <textarea
+                readOnly
+                className="w-full mt-2 p-2 border rounded"
+                value={savedDescription.transcription}
+            />
+        </div>
+
+        {savedAudioUrl && (
+            <audio
+                controls
+                className="w-full mt-4"
+                src={savedAudioUrl}
+            />
+        )}
+    </div>
+)}
             </>
           ) : (
             <p className="text-gray-600">No CV/LSV files available.</p>
