@@ -234,34 +234,57 @@ const [loading,setLoading] = useState(true);
   credentials: "include",
   body: formData,
 });
+const uploadAudio = async (blob) => {
+    setIsSaving(true);
 
-      const data = await res.json();
+    try {
+        const fileId = file?.id;
+        if (!fileId) {
+            toast.error("No file selected.");
+            return false;
+        }
 
-      if (data.status === "success") {
+        const formData = new FormData();
+        formData.append("audio", blob, "recording.webm");
 
-        //  FIX: show toast BEFORE state updates
-        toast.success("Recording saved!", { autoClose: 1500 });
+        const res = await fetch(`/api/files/${fileId}/save-audio/`, {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+        });
 
-        //  FIX: delay so toast remains visible
-        await new Promise(r => setTimeout(r, 700));
+        const data = await res.json();
 
-        // Now clear blob and re-render safely
-        setAudioBlob(null);
-        setAudioURL(null);
-        setTranscript("");
-        setInterimTranscript("");
-        return true;
-      } else {
-        toast.error("Upload failed");
-        return false;
-      }
+        if (data.status === "success") {
+
+            // Replace browser transcript with Whisper transcript
+            if (data.transcription) {
+                setTranscript(data.transcription);
+                setInterimTranscript("");
+            }
+
+            toast.success("Recording saved!", { autoClose: 1500 });
+
+            await new Promise((r) => setTimeout(r, 700));
+
+            setAudioBlob(null);
+            setAudioURL(null);
+
+            return true;
+
+        } else {
+            toast.error("Upload failed");
+            return false;
+        }
+
     } catch (err) {
-      toast.error("Error uploading audio");
-      return false;
+        console.error(err);
+        toast.error("Error uploading audio");
+        return false;
     } finally {
-      setIsSaving(false);
+        setIsSaving(false);
     }
-  };
+};
 
   const formatKey = (key) => {
     const clean = key.replace(/_/g, " ");
@@ -834,8 +857,7 @@ Speak now. Your voice is being recorded and transcribed.
                       <button
                         type="button"
                         onClick={() => {
-                          setTranscript("");
-                          setInterimTranscript("");
+                       
                           toast.info("Transcript cleared. Recording kept.");
                         }}
                         className="px-3 py-1 text-sm bg-white border border-orange-200 rounded hover:bg-orange-50"
