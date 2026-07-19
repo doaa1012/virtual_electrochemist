@@ -216,24 +216,7 @@ const [loading,setLoading] = useState(true);
     stopSpeechToText();
   };
 
-  const uploadAudio = async (blob) => {
-    setIsSaving(true);
 
-    try {
-      const fileId = file?.id;
-      if (!fileId) {
-        toast.error("No file selected.");
-        return false;
-      }
-
-      const formData = new FormData();
-      formData.append("audio", blob, "recording.webm");
-
-      const res = await fetch(`/api/files/${fileId}/save-audio/`, {
-  method: "POST",
-  credentials: "include",
-  body: formData,
-});
 const uploadAudio = async (blob) => {
     setIsSaving(true);
 
@@ -857,10 +840,11 @@ Speak now. Your voice is being recorded and transcribed.
                       <button
                         type="button"
                         onClick={() => {
-                       
-                          toast.info("Transcript cleared. Recording kept.");
-                        }}
-                        className="px-3 py-1 text-sm bg-white border border-orange-200 rounded hover:bg-orange-50"
+                                setTranscript("");
+                                setInterimTranscript("");
+                                toast.info("Transcript cleared. Recording kept.");
+                            }}
+                      className="px-3 py-1 text-sm bg-white border border-orange-200 rounded hover:bg-orange-50"
                       >
                         Clear
                       </button>
