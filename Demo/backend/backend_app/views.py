@@ -32,6 +32,7 @@ from .models import (
     ConsentRecord,
     VirtualUser,
 )
+from .whisper_service import transcribe
 from django.forms.models import model_to_dict
 import json
 import numpy as np
@@ -650,13 +651,24 @@ def save_file_audio(request, file_id):
             virtual_user=virtual_user,
             audio=audio_file
         )
+        
+        # --------------------------
+        # Run Whisper
+        # --------------------------
+        result = transcribe(desc.audio.path)
+        
+        desc.transcription = result["text"]
+        desc.language = result["language"]
+        desc.save()
+        
         return JsonResponse({
             "status": "success",
             "description_id": desc.id,
             "created": desc.created_at.isoformat(),
-            "audio_url": desc.audio.url
+            "audio_url": desc.audio.url,
+            "transcription": desc.transcription,
+            "language": desc.language,
         })
-
     except ExperimentFile.DoesNotExist:
         return HttpResponseBadRequest("File not found")
 
