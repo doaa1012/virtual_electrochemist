@@ -655,11 +655,19 @@ def save_file_audio(request, file_id):
         # --------------------------
         # Run Whisper
         # --------------------------
-        result = transcribe(desc.audio.path)
+        try:
+            result = transcribe(desc.audio.path)
         
-        desc.transcription = result["text"]
-        desc.language = result["language"]
-        desc.save()
+            desc.transcription = result.get("text", "")
+            desc.language = result.get("language", "")
+            desc.save()
+        
+        except Exception as e:
+            logger.exception("Whisper transcription failed")
+        
+            desc.transcription = ""
+            desc.language = ""
+            desc.save()
         
         return JsonResponse({
             "status": "success",
@@ -767,11 +775,8 @@ def save_consent(request):
         ########################################################
         # Response
         ########################################################
-
         response = Response(
-
             {
-
                 "status": "success",
 
                 "virtual_user_id":
@@ -788,11 +793,7 @@ def save_consent(request):
 
             },
 
-            status=status.HTTP_201_CREATED
-
-        )
-
-
+            status=status.HTTP_201_CREATED )
         ########################################################
         # Save EXACT SAME session_id in browser cookie
         ########################################################
