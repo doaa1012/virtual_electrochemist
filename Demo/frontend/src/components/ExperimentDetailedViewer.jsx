@@ -169,7 +169,18 @@ const [loading,setLoading] = useState(true);
       startSpeechToText();
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      let mimeType = "audio/webm;codecs=opus";
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = "audio/webm";
+      }
+      
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = "";
+      }
+      
+      const mediaRecorder = mimeType
+          ? new MediaRecorder(stream, { mimeType })
+          : new MediaRecorder(stream);
 
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
@@ -188,7 +199,15 @@ const [loading,setLoading] = useState(true);
         // stop mic
         stream.getTracks().forEach((t) => t.stop());
 
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(
+    chunksRef.current,
+    {
+        type: mediaRecorder.mimeType || "audio/webm"
+    }
+);
+
+console.log("Blob size:", blob.size);
+console.log("Blob type:", blob.type);
 
         if (blob.size === 0) {
           toast.error("No audio detected. Try speaking louder.");
@@ -204,6 +223,7 @@ const [loading,setLoading] = useState(true);
       };
 
       mediaRecorder.start();
+      console.log("Recorder MIME:", mediaRecorder.mimeType);
     } catch (error) {
       console.error("Microphone error:", error);
       alert("Microphone permission is required.");
