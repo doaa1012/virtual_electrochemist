@@ -1,4 +1,5 @@
 from faster_whisper import WhisperModel
+import os
 
 model = WhisperModel(
     "small",
@@ -7,29 +8,33 @@ model = WhisperModel(
 )
 
 def transcribe(audio_path):
-    print(f"Transcribing: {audio_path}")
+    print("=" * 60)
+    print("Audio:", audio_path)
+    print("Exists:", os.path.exists(audio_path))
+    print("Size:", os.path.getsize(audio_path), "bytes")
 
     segments, info = model.transcribe(
         audio_path,
-        language="en",      # change if needed
+        language="en",
         beam_size=5,
         vad_filter=True,
     )
 
     print("Detected language:", info.language)
-    print("Language probability:", info.language_probability)
+    print("Probability:", info.language_probability)
 
     texts = []
 
     for segment in segments:
         print(
-            f"[{segment.start:.2f} - {segment.end:.2f}] {segment.text}"
+            f"{segment.start:.2f} -> {segment.end:.2f}: {segment.text}"
         )
         texts.append(segment.text.strip())
 
     text = " ".join(texts)
 
-    print("Final transcript:", text)
+    print("Transcript:", repr(text))
+    print("=" * 60)
 
     return {
         "text": text,
