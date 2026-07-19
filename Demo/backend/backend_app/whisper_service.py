@@ -14,11 +14,10 @@ def transcribe(audio_path):
     print("Size:", os.path.getsize(audio_path), "bytes")
 
     segments, info = model.transcribe(
-        audio_path,
-        language="en",
-        beam_size=5,
-        vad_filter=True,
-    )
+    audio_path,
+    language="en",
+    beam_size=5,
+    vad_filter=False,)
 
     print("Detected language:", info.language)
     print("Probability:", info.language_probability)
