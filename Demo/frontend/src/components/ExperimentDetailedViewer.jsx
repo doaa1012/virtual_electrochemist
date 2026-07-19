@@ -230,13 +230,19 @@ const uploadAudio = async (blob) => {
         const formData = new FormData();
         formData.append("audio", blob, "recording.webm");
 
-        const res = await fetch(`/api/files/${fileId}/save-audio/`, {
-            method: "POST",
-            credentials: "include",
-            body: formData,
-        });
-
-        const data = await res.json();
+      const res = await fetch(`/api/files/${fileId}/save-audio/`, {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+      });
+      
+      console.log("Status:", res.status);
+      console.log("Content-Type:", res.headers.get("content-type"));
+      
+      const text = await res.text();
+      console.log("Response from server:", text);
+      
+      const data = JSON.parse(text);
 
         if (data.status === "success") {
 
