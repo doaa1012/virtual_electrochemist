@@ -628,47 +628,50 @@ def experiment_plot(request):
         return HttpResponseBadRequest(f"Parse error: {str(e)}")
 
 
-
 @csrf_exempt
 def save_file_audio(request, file_id):
+    print(">>> ENTERED save_file_audio")
+
     if request.method != "POST":
+        print("Wrong method:", request.method)
         return HttpResponseBadRequest("POST request required")
 
     try:
+        print("Reading uploaded audio...")
         audio_file = request.FILES.get("audio")
+
         if not audio_file:
+            print("No audio received")
             return HttpResponseBadRequest("No audio file provided")
 
+        print("Finding ExperimentFile...")
         file_obj = ExperimentFile.objects.get(id=file_id)
+
         session_id = request.COOKIES.get("session_id")
-        
+
         virtual_user = VirtualUser.objects.filter(
             cookie_session=session_id
         ).first()
-        
+
+        print("Creating ExperimentDescription...")
         desc = ExperimentDescription.objects.create(
             experiment_file=file_obj,
             virtual_user=virtual_user,
             audio=audio_file
         )
-        
-        # --------------------------
-        # Run Whisper
-        # --------------------------
-        try:
-            result = transcribe(desc.audio.path)
-        
-            desc.transcription = result.get("text", "")
-            desc.language = result.get("language", "")
-            desc.save()
-        
-        except Exception as e:
-            logger.exception("Whisper transcription failed")
-        
-            desc.transcription = ""
-            desc.language = ""
-            desc.save()
-        
+
+        print("Audio saved:", desc.audio.path)
+
+        print("Starting Whisper...")
+        result = transcribe(desc.audio.path)
+        print("Finished Whisper")
+
+        desc.transcription = result.get("text", "")
+        desc.language = result.get("language", "")
+        desc.save()
+
+        print("Returning JSON")
+
         return JsonResponse({
             "status": "success",
             "description_id": desc.id,
@@ -677,13 +680,12 @@ def save_file_audio(request, file_id):
             "transcription": desc.transcription,
             "language": desc.language,
         })
-    except ExperimentFile.DoesNotExist:
-        return HttpResponseBadRequest("File not found")
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JsonResponse({"error": str(e)}, status=500)
-
-
+        
 @csrf_exempt
 @api_view(["POST"])
 def save_consent(request):
