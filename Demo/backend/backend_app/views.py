@@ -30,7 +30,7 @@ from .models import (
     ExperimentFile,
     ExperimentDescription,
     ConsentRecord,
-    VirtualUser,
+    VirtualUser,ContactMessage
 )
 from .whisper_service import transcribe
 from django.forms.models import model_to_dict
@@ -40,6 +40,10 @@ import csv
 from django.conf import settings
 from django.http import JsonResponse, HttpResponseBadRequest
 import secrets
+from django.core.mail import send_mail
+from rest_framework.response import Response
+from rest_framework import status
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -938,3 +942,52 @@ def restore_session(request):
     httponly=True,
     samesite="Lax")
     return response
+##### new
+@api_view(["POST"])
+def contact(request):
+
+    name = request.data.get("name", "").strip()
+    email = request.data.get("email", "").strip()
+    subject = request.data.get("subject", "").strip()
+    message = request.data.get("message", "").strip()
+
+    if not all([name, email, subject, message]):
+        return Response(
+            {"error": "All fields are required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    contact = ContactMessage.objects.create(
+        name=name,
+        email=email,
+        subject=subject,
+        message=message,
+    )
+
+    send_mail(
+        subject=f"[Contact Form] {subject}",
+        message=f"""
+        New contact form submission
+
+        Name: {name}
+
+        Email: {email}
+
+        Subject: {subject}
+
+        Message:
+
+        {message}
+        """,
+        from_email=None,
+        recipient_list=["your_group_email@rub.de"],
+        fail_silently=False,
+    )
+
+    return Response(
+        {
+            "status": "success",
+            "id": contact.id,
+        }
+    )
+
