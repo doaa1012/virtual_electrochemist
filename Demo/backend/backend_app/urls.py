@@ -64,5 +64,5 @@ urlpatterns = [
         experiment_details,
         name="experiment_details"
     ),
-
+    path("api/contact/", contact),
 ]
